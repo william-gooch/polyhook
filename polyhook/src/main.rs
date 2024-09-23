@@ -1,17 +1,20 @@
+mod render;
 use egui::Vec2;
 
-#[derive(Default)]
-struct App {}
+struct App {
+    renderer: render::Renderer,
+}
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        Self::default()
+        Self {
+            renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
+        }
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::SidePanel::left("left_panel")
                 .resizable(true)
@@ -24,14 +27,14 @@ impl eframe::App for App {
                     ));
                 });
 
-            egui::CentralPanel::default()
-                .show_inside(ui, |ui| {
-                    ui.heading(format!(
-                        "Hello, world! The window size is {} by {}",
-                        ctx.screen_rect().width(),
-                        ctx.screen_rect().height()
+            egui::CentralPanel::default().show_inside(ui, |ui| {
+                let rect = ui.max_rect();
+                ui.painter()
+                    .add(eframe::egui_wgpu::Callback::new_paint_callback(
+                        rect,
+                        render::RendererCallback,
                     ));
-                })
+            });
         });
     }
 }
