@@ -7,9 +7,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.89"
-egui = "0.28.1"
+egui = { git = "https://github.com/emilk/egui", branch = "master" }
+egui-wgpu = { git = "https://github.com/emilk/egui", branch = "master", features = ["winit"] }
+egui-winit = { git = "https://github.com/emilk/egui", branch = "master" }
 env_logger = "0.11.5"
 pollster = "0.3.0"
-wgpu = "22.1.0"
+wgpu = { version = "22.1.0", default-features = false }
 winit = "0.30.5"
 

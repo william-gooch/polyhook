@@ -1,6 +1,11 @@
+mod ui;
+
 use std::{borrow::Cow, sync::Arc};
 
 use anyhow::{anyhow, Result};
+use egui_wgpu::WgpuConfiguration;
+use ui::EguiRenderer;
+use wgpu::TextureFormat;
 use winit::{
     application::ApplicationHandler,
     event::{Event, WindowEvent},
@@ -16,6 +21,7 @@ struct App {
     device: Option<wgpu::Device>,
     queue: Option<wgpu::Queue>,
     render_pipeline: Option<wgpu::RenderPipeline>,
+    ui: Option<EguiRenderer>,
 }
 
 impl ApplicationHandler for App {
@@ -68,6 +74,47 @@ impl ApplicationHandler for App {
                     rpass.set_pipeline(self.render_pipeline.as_ref().unwrap());
                     rpass.draw(0..3, 0..1);
                 }
+
+                let screen_descriptor = egui_wgpu::ScreenDescriptor {
+                    size_in_pixels: [frame.texture.width(), frame.texture.height()],
+                    pixels_per_point: self.window.as_ref().unwrap().scale_factor() as f32,
+                };
+
+                self.ui.as_mut().unwrap().draw(
+                    self.device.as_ref().unwrap(),
+                    self.queue.as_ref().unwrap(),
+                    &mut encoder,
+                    self.window.as_ref().unwrap(),
+                    &view,
+                    screen_descriptor,
+                    |ctx| {
+                        egui::Window::new("winit + egui + wgpu says hello!")
+                            .resizable(true)
+                            .vscroll(true)
+                            .default_open(false)
+                            .show(ctx, |ui| {
+                                ui.label("Label!");
+
+                                if ui.button("Button!").clicked() {
+                                    println!("boom!")
+                                }
+
+                                ui.separator();
+                                ui.horizontal(|ui| {
+                                    ui.label(format!(
+                                        "Pixels per point: {}",
+                                        ctx.pixels_per_point()
+                                    ));
+                                    if ui.button("-").clicked() {
+                                        println!("zoom out");
+                                    }
+                                    if ui.button("+").clicked() {
+                                        println!("zoom in");
+                                    }
+                                });
+                            });
+                    },
+                );
 
                 self.queue.as_ref().unwrap().submit(Some(encoder.finish()));
                 frame.present();
@@ -126,6 +173,8 @@ impl App {
 
         let swapchain_capabilities = surface.get_capabilities(&adapter);
         let swapchain_format = swapchain_capabilities.formats[0];
+
+        self.ui = Some(EguiRenderer::new(&device, &window));
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
