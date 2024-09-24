@@ -1,4 +1,7 @@
 mod render;
+use std::sync::Arc;
+
+use eframe::glow::POLYGON_MODE;
 use egui::Vec2;
 
 struct App {
@@ -48,11 +51,8 @@ impl eframe::App for App {
                 let mut translation = glam::Mat4::IDENTITY;
                 if response.dragged_by(egui::PointerButton::Secondary) {
                     let del = response.drag_motion();
-                    translation *= glam::Mat4::from_translation(glam::vec3(
-                        del.x * 0.01,
-                        -del.y * 0.01,
-                        0.0,
-                    ));
+                    translation *=
+                        glam::Mat4::from_translation(glam::vec3(del.x * 0.01, -del.y * 0.01, 0.0));
                 }
                 let zdel = ctx.input(|input| input.smooth_scroll_delta.y);
                 translation *= glam::Mat4::from_translation(glam::vec3(0.0, 0.0, -zdel * 0.01));
@@ -66,11 +66,19 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result {
+    use eframe::egui_wgpu::{self, wgpu};
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_min_inner_size(Vec2::new(1024.0, 768.0))
             .with_resizable(true),
-
+        wgpu_options: egui_wgpu::WgpuConfiguration {
+            device_descriptor: Arc::new(|adapter| wgpu::DeviceDescriptor {
+                required_features: wgpu::Features::POLYGON_MODE_LINE,
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
         ..Default::default()
     };
     eframe::run_native(
