@@ -2,6 +2,18 @@ use eframe::egui_wgpu;
 use eframe::egui_wgpu::wgpu;
 use eframe::wgpu::util::DeviceExt;
 
+pub struct Orbit {
+    pub phi: f32,
+    pub theta: f32,
+    pub d: f32,
+}
+
+impl Orbit {
+    pub fn matrix(&self) -> glam::Mat4 {
+        glam::Mat4::from_translation(glam::vec3(0.0, 0.0, self.d)) * glam::Mat4::from_rotation_x(self.phi) * glam::Mat4::from_rotation_y(self.theta) 
+    }
+}
+
 pub struct MVP {
     pub model: glam::Mat4,
     pub view: glam::Mat4,
