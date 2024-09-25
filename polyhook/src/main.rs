@@ -1,7 +1,6 @@
 mod render;
 use std::sync::Arc;
 
-use eframe::glow::POLYGON_MODE;
 use egui::Vec2;
 
 struct App {
@@ -60,7 +59,7 @@ impl eframe::App for App {
             });
         });
 
-        // self.renderer.mvp.model = glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model;
+        self.renderer.mvp.model = glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model;
         ctx.request_repaint();
     }
 }

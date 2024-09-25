@@ -26,7 +26,7 @@ impl MVP {
     }
 
     pub fn matrix(&self) -> glam::Mat4 {
-        return self.projection * self.view * self.model;
+        self.projection * self.view * self.model
     }
 
     pub fn update_projection(&mut self, aspect_ratio: f32) {
@@ -44,7 +44,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new<'a>(wgpu_render_state: &'a egui_wgpu::RenderState) -> Option<Self> {
+    pub fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Option<Self> {
         let device = &wgpu_render_state.device;
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -137,7 +137,7 @@ impl egui_wgpu::CallbackTrait for RendererCallback {
         callback_resources: &mut egui_wgpu::CallbackResources,
     ) -> Vec<eframe::wgpu::CommandBuffer> {
         let resources: &RendererResources = callback_resources.get().unwrap();
-        resources.prepare(device, queue, &self);
+        resources.prepare(device, queue, self);
         Vec::new()
     }
 
