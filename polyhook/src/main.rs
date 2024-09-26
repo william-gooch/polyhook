@@ -1,18 +1,19 @@
+mod transform;
 mod render;
-use std::sync::Arc;
 
+use std::sync::Arc;
 use egui::Vec2;
 
 struct App {
     renderer: render::Renderer,
-    orbit: render::Orbit,
+    orbit: transform::Orbit,
 }
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         Self {
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
-            orbit: render::Orbit {
+            orbit: transform::Orbit {
                 phi: 0.0,
                 theta: 0.0,
                 d: 3.0,
@@ -53,24 +54,14 @@ impl eframe::App for App {
                         render::RendererCallback(self.renderer.mvp.matrix()),
                     ));
 
-                let mut rot = glam::Mat4::IDENTITY;
-                if response.dragged_by(egui::PointerButton::Secondary) {
-                    let del = response.drag_motion();
-                    self.orbit.theta -= del.x * 0.01;
-                    self.orbit.phi -= del.y * 0.01;
-                    // transform *=
-                    //     glam::Mat4::from_translation(glam::vec3(del.x * 0.01, -del.y * 0.01, 0.0));
-                    // rot *= glam::Mat4::from_rotation_y(del.x * 0.01);
-                    // rot *= glam::Mat4::from_rotation_z(del.y * 0.01);
-                }
-                let zdel = ctx.input(|input| input.smooth_scroll_delta.y);
-                self.orbit.d -= zdel * 0.01;
-                let zoom = glam::Mat4::from_translation(glam::vec3(0.0, 0.0, -zdel * 0.01));
+                let drag = response.drag_motion();
+                let z = ctx.input(|input| input.smooth_scroll_delta.y);
+                self.orbit.update(glam::vec3(drag.x, drag.y, z));
                 self.renderer.mvp.view = self.orbit.matrix();
             });
         });
 
-        //self.renderer.mvp.model = glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model;
+        self.renderer.mvp.model = glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model;
         ctx.request_repaint();
     }
 }
