@@ -1,5 +1,4 @@
 use petgraph::{graph, visit::{EdgeRef, NodeCount}, Direction};
-use std::collections::{linked_list::Cursor, LinkedList};
 
 type Id = graph::NodeIndex;
 

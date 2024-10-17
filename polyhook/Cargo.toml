@@ -8,6 +8,6 @@ edition = "2021"
 [dependencies]
 bytemuck = { version = "1.18.0", features = ["derive"] }
 eframe = { version = "0.28.1", features = ["wgpu"] }
+glam = { workspace = true }
 egui = "0.28.1"
-glam = { version = "0.29.0", features = ["bytemuck"] }
 hooklib = { path = "../hooklib" }

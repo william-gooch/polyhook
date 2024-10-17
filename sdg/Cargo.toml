@@ -1,0 +1,13 @@
+[package]
+name = "sdg"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+petgraph = { workspace = true }
+glam = { workspace = true }
+rand = "0.8.5"
+itertools = "0.13.0"
+
+[dev-dependencies]
+hooklib = { path = "../hooklib" }

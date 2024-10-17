@@ -2,5 +2,10 @@
 resolver = "2"
 members = [
     "hooklib",
-    "polyhook"
+    "polyhook",
+    "sdg"
 ]
+
+[workspace.dependencies]
+petgraph = "0.6.5"
+glam = { version = "0.29.0", features = ["bytemuck"] }
