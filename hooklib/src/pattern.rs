@@ -1,4 +1,4 @@
-use petgraph::{graph, visit::EdgeRef, Direction};
+use petgraph::{graph, visit::EdgeRef, Direction, Graph};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Node {
@@ -43,11 +43,11 @@ impl Into<f32> for EdgeType {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct Pattern {
     graph: graph::DiGraph<Node, EdgeType>,
-    start: Option<graph::NodeIndex>,
-    prev: Option<graph::NodeIndex>,
+    start: graph::NodeIndex,
+    prev: graph::NodeIndex,
     insert: Option<graph::NodeIndex>,
     current_ch_sp: Option<Vec<graph::NodeIndex>>,
 }
@@ -68,12 +68,28 @@ impl Pattern {
         &self.graph
     }
 
-    pub fn prev(&self) -> Option<graph::NodeIndex> {
+    pub fn prev(&self) -> graph::NodeIndex {
         self.prev
     }
 
     pub fn set_insert(&mut self, insert: graph::NodeIndex) {
         self.insert = Some(insert);
+    }
+
+    pub fn new() -> Self {
+        let mut graph: Graph<Node, EdgeType> = Default::default();
+        let start = graph.add_node(Node::chain());
+        let prev = start;
+
+        let new_pattern = Self {
+            graph,
+            start,
+            prev,
+            insert: None,
+            current_ch_sp: None,
+        };
+
+        new_pattern
     }
 
     pub fn to_graphviz(&self) -> String {
@@ -87,7 +103,7 @@ impl Pattern {
                 }
                 _ => "shape = \"point\" label = \"\"",
             };
-            let style = if id == self.start.unwrap() {
+            let style = if id == self.start {
                 "filled"
             } else {
                 ""
@@ -119,24 +135,14 @@ impl Pattern {
     }
 
     pub fn new_row(&mut self) {
-        if self.graph.node_count() == 0 {
-            self.start = Some(self.graph.add_node(Node::chain()));
-            self.prev = self.start;
-        } else {
-            self.insert = self.prev;
-            self.chain();
-            self.skip();
-        }
+        self.insert = Some(self.prev);
+        self.chain();
+        self.skip();
     }
 
     pub fn new_row_noskip(&mut self) {
-        if self.graph.node_count() == 0 {
-            self.start = Some(self.graph.add_node(Node::chain()));
-            self.prev = self.start;
-        } else {
-            self.insert = self.prev;
-            self.chain();
-        }
+        self.insert = Some(self.prev);
+        self.chain();
     }
 
     pub fn skip(&mut self) {
@@ -158,8 +164,8 @@ impl Pattern {
     pub fn chain(&mut self) {
         let new_node = self.graph.add_node(Node::chain());
         self.graph
-            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
-        self.prev = Some(new_node);
+            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.prev = new_node;
 
         if let Some(ch_sp) = self.current_ch_sp.as_mut() {
             ch_sp.push(new_node);
@@ -169,28 +175,28 @@ impl Pattern {
     pub fn dc(&mut self) {
         let new_node = self.graph.add_node(Node::dc());
         self.graph
-            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
 
-        self.prev = Some(new_node);
+        self.prev = new_node;
     }
 
     pub fn dc_noskip(&mut self) {
         let new_node = self.graph.add_node(Node::dc());
         self.graph
-            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
 
-        self.prev = Some(new_node);
+        self.prev = new_node;
     }
 
     pub fn dec(&mut self) {
         let new_node = self.graph.add_node(Node::decrease());
         self.graph
-            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
@@ -198,13 +204,13 @@ impl Pattern {
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
 
-        self.prev = Some(new_node);
+        self.prev = new_node;
     }
 
     pub fn dec_rev(&mut self) {
         let new_node = self.graph.add_node(Node::decrease());
         self.graph
-            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip_rev();
@@ -212,7 +218,7 @@ impl Pattern {
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip_rev();
 
-        self.prev = Some(new_node);
+        self.prev = new_node;
     }
 
     pub fn inc(&mut self) {
@@ -222,7 +228,7 @@ impl Pattern {
 
     pub fn slip_stitch(&mut self, into: graph::NodeIndex) {
         self.graph
-            .add_edge(self.prev.unwrap(), into, EdgeType::Slip);
+            .add_edge(self.prev, into, EdgeType::Slip);
     }
 
     pub fn start_ch_sp(&mut self) {
@@ -230,7 +236,7 @@ impl Pattern {
             panic!("tried to start a chain space while one was already started!");
         }
 
-        self.current_ch_sp = Some(vec![self.prev.unwrap()]);
+        self.current_ch_sp = Some(vec![self.prev]);
     }
 
     pub fn end_ch_sp(&mut self) -> graph::NodeIndex {
@@ -249,12 +255,10 @@ impl Pattern {
     }
 }
 
-pub fn test_pattern() -> Pattern {
-    let mut pattern = Pattern::default();
-
-    pattern.new_row();
+pub fn test_pattern_spiral_rounds() -> Pattern {
+    let mut pattern = Pattern::new();
     pattern.start_ch_sp();
-    let start = pattern.prev().unwrap();
+    let start = pattern.prev();
     for _ in 1..=2 {
         pattern.chain();
     }
@@ -262,7 +266,7 @@ pub fn test_pattern() -> Pattern {
     let ch_sp = pattern.end_ch_sp();
 
     pattern.set_insert(ch_sp);
-    let start = pattern.prev().unwrap();
+    let start = pattern.prev();
     for _ in 1..=5 {
         pattern.dc_noskip();
     }
@@ -290,11 +294,10 @@ pub fn test_pattern() -> Pattern {
 }
 
 pub fn test_pattern_sphere() -> Pattern {
-    let mut pattern = Pattern::default();
+    let mut pattern = Pattern::new();
 
-    pattern.new_row();
     pattern.start_ch_sp();
-    let start = pattern.prev().unwrap();
+    let start = pattern.prev();
     for _ in 1..=2 {
         pattern.chain();
     }
@@ -302,7 +305,7 @@ pub fn test_pattern_sphere() -> Pattern {
     let ch_sp = pattern.end_ch_sp();
 
     pattern.set_insert(ch_sp);
-    let start = pattern.prev().unwrap();
+    let start = pattern.prev();
     for _ in 1..=5 {
         pattern.dc_noskip();
     }
@@ -343,18 +346,16 @@ pub fn test_pattern_sphere() -> Pattern {
     pattern
 }
 
-pub fn test_pattern_2() -> Pattern {
-    let mut pattern = Pattern::default();
-
-    pattern.new_row();
-    let start = pattern.prev().unwrap();
+pub fn test_pattern_joined_rounds() -> Pattern {
+    let mut pattern = Pattern::new();
+    let start = pattern.prev();
     for _ in 1..=5 {
         pattern.chain();
     }
     pattern.slip_stitch(start);
 
     pattern.new_row_noskip();
-    let start = pattern.prev().unwrap();
+    let start = pattern.prev();
     pattern.dc();
     for _ in 1..=5 {
         pattern.inc();
@@ -363,7 +364,7 @@ pub fn test_pattern_2() -> Pattern {
 
     for round in 1..=20 {
         pattern.new_row();
-        let start = pattern.prev().unwrap();
+        let start = pattern.prev();
         for _ in 1..=5 {
             pattern.inc();
             for _ in 1..=round {
@@ -380,13 +381,12 @@ pub fn test_pattern_2() -> Pattern {
     pattern
 }
 
-pub fn test_pattern_3() -> Pattern {
-    let mut pattern = Pattern::default();
-
-    pattern.new_row();
+pub fn test_pattern_flat() -> Pattern {
+    let mut pattern = Pattern::new();
     for _ in 1..=15 {
         pattern.chain();
     }
+
     for _ in 1..=15 {
         pattern.new_row();
         for _ in 1..=15 {
@@ -405,102 +405,34 @@ mod tests {
     const TEST_DIR: &'static str = concat!(env!("CARGO_MANIFEST_DIR"), "/test_out");
 
     #[test]
-    fn test_create_pattern() {
-        let mut pattern = Pattern::default();
+    fn test_flat() {
+        let pattern = test_pattern_flat();
 
-        pattern.new_row();
-        for _ in 1..=15 {
-            pattern.chain();
-        }
-        for _ in 1..=15 {
-            pattern.new_row();
-            for _ in 1..=15 {
-                pattern.dc();
-            }
-        }
-
-        let mut file = std::fs::File::create(format!("{TEST_DIR}/test.dot")).unwrap();
+        let mut file = std::fs::File::create(format!("{TEST_DIR}/flat.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
     }
 
     #[test]
     fn test_spiral_rounds() {
-        let mut pattern = Pattern::default();
+        let pattern = test_pattern_spiral_rounds();
 
-        pattern.new_row();
-        pattern.start_ch_sp();
-        let start = pattern.prev().unwrap();
-        for _ in 1..=2 {
-            pattern.chain();
-        }
-        pattern.slip_stitch(start);
-        let ch_sp = pattern.end_ch_sp();
-
-        pattern.set_insert(ch_sp);
-        let start = pattern.prev().unwrap();
-        for _ in 1..=5 {
-            pattern.dc_noskip();
-        }
-        pattern.set_insert(start);
-
-        for _ in 1..=6 {
-            pattern.dc_noskip();
-            pattern.dc_noskip();
-            pattern.skip_rev();
-        }
-
-        for j in 1..20 {
-            for _ in 1..=6 {
-                for _ in 1..=j {
-                    pattern.dc_noskip();
-                    pattern.skip_rev();
-                }
-                pattern.dc_noskip();
-                pattern.dc_noskip();
-                pattern.skip_rev();
-            }
-        }
-
-        let mut file = std::fs::File::create(format!("{TEST_DIR}/spiral.dot")).unwrap();
+        let mut file = std::fs::File::create(format!("{TEST_DIR}/spiral_rounds.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
     }
 
     #[test]
-    fn test_rounds() {
-        let mut pattern = Pattern::default();
+    fn test_joined_rounds() {
+        let pattern = test_pattern_joined_rounds();
 
-        pattern.new_row();
-        let start = pattern.prev().unwrap();
-        for _ in 1..=5 {
-            pattern.chain();
-        }
-        pattern.slip_stitch(start);
+        let mut file = std::fs::File::create(format!("{TEST_DIR}/joined_rounds.dot")).unwrap();
+        write!(file, "{}", pattern.to_graphviz()).unwrap();
+    }
 
-        pattern.new_row_noskip();
-        let start = pattern.prev().unwrap();
-        pattern.dc();
-        for _ in 1..=5 {
-            pattern.inc();
-        }
-        pattern.slip_stitch(start);
+    #[test]
+    fn test_sphere() {
+        let pattern = test_pattern_sphere();
 
-        for round in 1..=20 {
-            pattern.new_row();
-            let start = pattern.prev().unwrap();
-            for _ in 1..=5 {
-                pattern.inc();
-                for _ in 1..=round {
-                    pattern.dc();
-                }
-            }
-            pattern.inc();
-            for _ in 1..round {
-                pattern.dc();
-            }
-            pattern.slip_stitch(start);
-        }
-
-        let mut file = std::fs::File::create(format!("{TEST_DIR}/rounds.dot")).unwrap();
+        let mut file = std::fs::File::create(format!("{TEST_DIR}/sphere.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
     }
 }

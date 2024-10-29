@@ -1,6 +1,39 @@
-use glam::Vec3;
+use glam::{Vec2, Vec3};
 use petgraph::{algo::dijkstra, stable_graph::NodeIndex, Undirected};
 use rand::prelude::*;
+use std::ops::{Add, Sub, Mul};
+
+pub trait SDGCoords: Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<f32, Output = Self> + Sized + Copy {
+    fn random() -> Self;
+    fn length(self) -> f32;
+}
+
+impl SDGCoords for Vec2 {
+    fn random() -> Self {
+        Vec2::new(
+            rand::thread_rng().gen_range(0.0..1.0),
+            rand::thread_rng().gen_range(0.0..1.0),
+        )
+    }
+
+    fn length(self) -> f32 {
+        Vec2::length(self)
+    }
+}
+
+impl SDGCoords for Vec3 {
+    fn random() -> Self {
+        Vec3::new(
+            rand::thread_rng().gen_range(0.0..1.0),
+            rand::thread_rng().gen_range(0.0..1.0),
+            rand::thread_rng().gen_range(0.0..1.0),
+        )
+    }
+
+    fn length(self) -> f32 {
+        Vec3::length(self)
+    }
+}
 
 #[derive(Debug)]
 struct Term {
@@ -10,7 +43,7 @@ struct Term {
     w: f32,
 }
 
-type Graph = petgraph::Graph<Vec3, f32, Undirected>;
+type Graph<C> = petgraph::Graph<C, f32, Undirected>;
 
 const EPSILON: f32 = 0.01;
 
@@ -36,15 +69,11 @@ fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
         .collect::<Vec<_>>()
 }
 
-pub fn sgd<N, E: Into<f32> + Clone>(g: &petgraph::Graph<N, E>) -> Graph {
+pub fn sgd<C, N, E>(g: &petgraph::Graph<N, E>) -> Graph<C> where C: SDGCoords, E: Into<f32> + Clone {
     let mut graph = g
         .filter_map(
             |_ix, _node| {
-                Some(Vec3::new(
-                    rand::thread_rng().gen_range(0.0..1.0),
-                    rand::thread_rng().gen_range(0.0..1.0),
-                    rand::thread_rng().gen_range(0.0..1.0),
-                ))
+                Some(SDGCoords::random())
             },
             |_ix, edge| Some(edge.clone().into()),
         )
@@ -77,12 +106,12 @@ pub fn sgd<N, E: Into<f32> + Clone>(g: &petgraph::Graph<N, E>) -> Graph {
             let p_i = graph[term.start];
             let p_j = graph[term.end];
 
-            let d = p_i - p_j;
+            let d: C = p_i - p_j;
             let mag = d.length();
 
             // distance constraint
             let r = (mu * (mag - term.d)) / (2.0 * mag);
-            let rv = r * d;
+            let rv = d * r;
 
             graph[term.start] = p_i - rv;
             graph[term.end] = p_j + rv;
@@ -99,43 +128,9 @@ mod tests {
 
     #[test]
     fn test_sgd() {
-        let mut pattern = Pattern::default();
+        let pattern = test_pattern_sphere();
 
-        pattern.new_row();
-        pattern.start_ch_sp();
-        let start = pattern.prev().unwrap();
-        for _ in 1..=2 {
-            pattern.chain();
-        }
-        pattern.slip_stitch(start);
-        let ch_sp = pattern.end_ch_sp();
-
-        pattern.set_insert(ch_sp);
-        let start = pattern.prev().unwrap();
-        for _ in 1..=5 {
-            pattern.dc_noskip();
-        }
-        pattern.set_insert(start);
-
-        for _ in 1..=6 {
-            pattern.dc_noskip();
-            pattern.dc_noskip();
-            pattern.skip_rev();
-        }
-
-        for j in 1..20 {
-            for _ in 1..=6 {
-                for _ in 1..=j {
-                    pattern.dc_noskip();
-                    pattern.skip_rev();
-                }
-                pattern.dc_noskip();
-                pattern.dc_noskip();
-                pattern.skip_rev();
-            }
-        }
-
-        let graph = sgd(pattern.graph());
+        let graph = sgd::<Vec3, _, _>(pattern.graph());
 
         for w in graph.node_weights() {
             println!("{}", w);

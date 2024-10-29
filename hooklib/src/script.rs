@@ -1,6 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
-use rhai::Engine;
+use rhai::{Engine, Locked};
 
 use crate::pattern::Pattern;
 
@@ -8,27 +8,29 @@ pub struct PatternScript;
 
 impl PatternScript {
     pub fn eval_script(script: &str) -> Result<Pattern, Box<dyn std::error::Error>> {
-        let mut engine = Engine::new();
+        let pattern = Rc::new(Locked::new(Pattern::new()));
 
-        let pattern = Rc::new(RefCell::new(Pattern::default()));
+        {
+            let mut engine = Engine::new();
 
-        engine
-            .register_fn("new_row", {
-                let pattern = pattern.clone();
-                move || pattern.borrow_mut().new_row()
-            })
-            .register_fn("chain", {
-                let pattern = pattern.clone();
-                move || pattern.borrow_mut().chain()
-            })
-            .register_fn("dc", {
-                let pattern = pattern.clone();
-                move || pattern.borrow_mut().dc()
-            });
+            engine
+                .register_fn("new_row", {
+                    let pattern = pattern.clone();
+                    move || pattern.borrow_mut().new_row()
+                })
+                .register_fn("chain", {
+                    let pattern = pattern.clone();
+                    move || pattern.borrow_mut().chain()
+                })
+                .register_fn("dc", {
+                    let pattern = pattern.clone();
+                    move || pattern.borrow_mut().dc()
+                });
 
-        let _ = engine.run(script)?;
+            let _ = engine.run(script)?;
+        }
 
-        Ok(pattern.take())
+        Ok(Rc::try_unwrap(pattern).expect("pattern variable still in use?").into_inner())
     }
 }
 
@@ -54,6 +56,6 @@ mod tests {
         )
         .expect("Error in evaluating script");
 
-        assert_eq!(pattern, crate::pattern::test_pattern_3());
+        assert_eq!(pattern, crate::pattern::test_pattern_flat());
     }
 }

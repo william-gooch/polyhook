@@ -1,4 +1,5 @@
 use crate::model::ModelData;
+use glam::Vec3;
 use hooklib::pattern::Pattern;
 use petgraph::visit::EdgeRef;
 use sgd::sgd;
@@ -6,7 +7,7 @@ use sgd::sgd;
 use super::Vertex;
 
 pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
-    let graph = sgd(pattern.graph());
+    let graph = sgd::<Vec3, _, _>(pattern.graph());
 
     ModelData {
         vertices: graph
