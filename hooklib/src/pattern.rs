@@ -32,6 +32,13 @@ pub enum EdgeType {
     Neighbour,
 }
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Default)]
+enum SkipDirection {
+    #[default]
+    Forward,
+    Reverse,
+}
+
 impl Into<f32> for EdgeType {
     fn into(self) -> f32 {
         match self {
@@ -50,6 +57,7 @@ pub struct Pattern {
     prev: graph::NodeIndex,
     insert: Option<graph::NodeIndex>,
     current_ch_sp: Option<Vec<graph::NodeIndex>>,
+    direction: SkipDirection,
 }
 
 impl PartialEq for Pattern {
@@ -87,6 +95,7 @@ impl Pattern {
             prev,
             insert: None,
             current_ch_sp: None,
+            direction: Default::default(),
         };
 
         new_pattern
@@ -136,29 +145,31 @@ impl Pattern {
 
     pub fn turn(&mut self) {
         self.insert = Some(self.prev);
+        self.direction = SkipDirection::Reverse;
         self.chain();
         self.skip();
     }
 
     pub fn turn_noskip(&mut self) {
         self.insert = Some(self.prev);
+        self.direction = SkipDirection::Reverse;
         self.chain();
     }
 
     pub fn skip(&mut self) {
-        self.insert = self
-            .graph
-            .edges_directed(self.insert.unwrap(), Direction::Outgoing)
-            .find(|e| *e.weight() == EdgeType::Previous)
-            .map(|e| e.target());
-    }
-
-    pub fn skip_rev(&mut self) {
-        self.insert = self
-            .graph
-            .edges_directed(self.insert.unwrap(), Direction::Incoming)
-            .find(|e| *e.weight() == EdgeType::Previous)
-            .map(|e| e.source());
+        if self.direction == SkipDirection::Forward {
+            self.insert = self
+                .graph
+                .edges_directed(self.insert.unwrap(), Direction::Incoming)
+                .find(|e| *e.weight() == EdgeType::Previous)
+                .map(|e| e.source());
+        } else {
+            self.insert = self
+                .graph
+                .edges_directed(self.insert.unwrap(), Direction::Outgoing)
+                .find(|e| *e.weight() == EdgeType::Previous)
+                .map(|e| e.target());
+        }
     }
 
     pub fn chain(&mut self) {
@@ -203,20 +214,6 @@ impl Pattern {
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
-
-        self.prev = new_node;
-    }
-
-    pub fn dec_rev(&mut self) {
-        let new_node = self.graph.add_node(Node::decrease());
-        self.graph
-            .add_edge(new_node, self.prev, EdgeType::Previous);
-        self.graph
-            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
-        self.skip_rev();
-        self.graph
-            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
-        self.skip_rev();
 
         self.prev = new_node;
     }
@@ -275,18 +272,18 @@ pub fn test_pattern_spiral_rounds() -> Pattern {
     for _ in 1..=6 {
         pattern.dc_noskip();
         pattern.dc_noskip();
-        pattern.skip_rev();
+        pattern.skip();
     }
 
     for j in 1..20 {
         for _ in 1..=6 {
             for _ in 1..=j {
                 pattern.dc_noskip();
-                pattern.skip_rev();
+                pattern.skip();
             }
             pattern.dc_noskip();
             pattern.dc_noskip();
-            pattern.skip_rev();
+            pattern.skip();
         }
     }
 
@@ -315,18 +312,18 @@ pub fn test_pattern_sphere() -> Pattern {
         for _ in 1..=6 {
             for _ in 1..=j {
                 pattern.dc_noskip();
-                pattern.skip_rev();
+                pattern.skip();
             }
             pattern.dc_noskip();
             pattern.dc_noskip();
-            pattern.skip_rev();
+            pattern.skip();
         }
     }
 
     for _ in 1..=7 {
         for _ in 1..=36 {
             pattern.dc_noskip();
-            pattern.skip_rev();
+            pattern.skip();
         }
     }
 
@@ -334,14 +331,14 @@ pub fn test_pattern_sphere() -> Pattern {
         for _ in 1..=6 {
             for _ in 1..=j {
                 pattern.dc_noskip();
-                pattern.skip_rev();
+                pattern.skip();
             }
-            pattern.dec_rev();
+            pattern.dec();
         }
     }
 
-    pattern.dec_rev();
-    pattern.dec_rev();
+    pattern.dec();
+    pattern.dec();
 
     pattern
 }
