@@ -1,5 +1,5 @@
 use crate::model::pattern_model::model_from_pattern;
-use crate::model::{cube, Model, ModelData, Vertex};
+use crate::model::{Model, ModelData, Vertex};
 use crate::shader::Shader;
 use crate::transform::MVP;
 
@@ -96,7 +96,7 @@ impl egui_wgpu::CallbackTrait for RendererCallback {
 
     fn paint(
         &self,
-        info: egui::PaintCallbackInfo,
+        _info: egui::PaintCallbackInfo,
         render_pass: &mut eframe::wgpu::RenderPass<'static>,
         callback_resources: &egui_wgpu::CallbackResources,
     ) {

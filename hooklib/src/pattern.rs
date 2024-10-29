@@ -1,6 +1,4 @@
-use petgraph::{graph, visit::{EdgeRef, NodeCount}, Direction};
-
-type Id = graph::NodeIndex;
+use petgraph::{graph, visit::EdgeRef, Direction};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Node {
@@ -84,7 +82,7 @@ impl Pattern {
     pub fn to_graphviz(&self) -> String {
         use petgraph::dot::{Dot, Config};
 
-        let node_attr_getter = |g, (id, &ref n)| {
+        let node_attr_getter = |_g, (id, &ref n)| {
             let options = match n {
                 Node::Stitch { ty: "ch" } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
                 Node::Stitch { ty: "dc" } => "shape = \"none\" label = \"+\" margin = \"0\" fontsize = 56.0",
@@ -98,7 +96,7 @@ impl Pattern {
         let dot = Dot::with_attr_getters(
             self.graph(),
             &[Config::EdgeNoLabel, Config::NodeNoLabel, Config::GraphContentOnly],
-            &|g, e| match e.weight() {
+            &|_g, e| match e.weight() {
                 EdgeType::Previous => "len = 1.0",
                 EdgeType::Insert => r#"len = 1.0 style = "dotted" arrowhead="vee""#,
                 EdgeType::Slip => "len = 1.0 style = \"dashed\"",

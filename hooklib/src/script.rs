@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use rhai::{Engine, EvalAltResult};
+use rhai::Engine;
 
 use crate::pattern::Pattern;
 
@@ -17,7 +17,7 @@ impl PatternScript {
             .register_fn("chain",   { let pattern = pattern.clone(); move || pattern.borrow_mut().chain() })
             .register_fn("dc",      { let pattern = pattern.clone(); move || pattern.borrow_mut().dc() });
 
-        let result = engine.run(script)?;
+        let _ = engine.run(script)?;
 
         Ok(pattern.take())
     }

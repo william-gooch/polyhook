@@ -1,5 +1,4 @@
 use rand::prelude::*;
-use itertools::Itertools;
 use glam::Vec3;
 use petgraph::{stable_graph::NodeIndex, Undirected, algo::dijkstra};
 
@@ -45,7 +44,7 @@ pub fn sgd<N, E: Into<f32> + Clone>(g: &petgraph::Graph<N, E>) -> Graph {
                 .map(|(end, cost)| (node, end, cost))
                 .collect::<Vec<_>>()
         })
-        .filter(|(start, end, cost)| *start < end)
+        .filter(|(start, end, _)| *start < end)
         .map(|(start, end, cost)| Term { start: *start, end, d: cost, w: 1.0 / (cost * cost) })
         .collect::<Vec<_>>();
     terms.shuffle(&mut rand::thread_rng());

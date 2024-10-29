@@ -118,30 +118,3 @@ impl Model {
         );
     }
 }
-
-const VERTICES: [Vertex; 8] = [
-    Vertex::new([-1.,  1., -1., 1.]), // ulb
-    Vertex::new([-1.,  1.,  1., 1.]), // ulf
-    Vertex::new([ 1.,  1., -1., 1.]), // urb
-    Vertex::new([ 1.,  1.,  1., 1.]), // urf
-    Vertex::new([-1., -1., -1., 1.]), // dlb
-    Vertex::new([-1., -1.,  1., 1.]), // dlf
-    Vertex::new([ 1., -1., -1., 1.]), // drb
-    Vertex::new([ 1., -1.,  1., 1.]), // drf
-];
-
-const INDICES: [u16; 36] = [
-    0, 1, 2, 2, 3, 1, // up
-    4, 5, 6, 6, 7, 5, // down
-    0, 1, 4, 4, 5, 1, // left
-    2, 3, 6, 6, 7, 3, // right
-    0, 2, 4, 4, 6, 2, // back
-    1, 3, 5, 5, 7, 3, // front
-];
-
-pub fn cube() -> ModelData {
-    ModelData {
-        vertices: VERTICES.to_vec(),
-        indices: INDICES.to_vec(),
-    }
-}

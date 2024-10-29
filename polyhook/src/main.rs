@@ -42,7 +42,7 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::SidePanel::left("left_panel")
                 .resizable(true)
@@ -93,7 +93,7 @@ fn main() -> eframe::Result {
             .with_min_inner_size(Vec2::new(1024.0, 768.0))
             .with_resizable(true),
         wgpu_options: egui_wgpu::WgpuConfiguration {
-            device_descriptor: Arc::new(|adapter| wgpu::DeviceDescriptor {
+            device_descriptor: Arc::new(|_adapter| wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::POLYGON_MODE_LINE,
                 ..Default::default()
             }),
