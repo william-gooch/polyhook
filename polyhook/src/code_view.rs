@@ -18,7 +18,8 @@ for _r in 1..=15 {
     for _s in 1..=15 {
         dc();
     }
-}"#.into()
+}"#
+            .into(),
         }
     }
 }
@@ -26,7 +27,13 @@ for _r in 1..=15 {
 impl CodeView {
     pub fn code_view_show(&mut self, ui: &mut egui::Ui) -> Option<ModelData> {
         let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
-            let mut layout_job = highlight(ui.ctx(), ui.style(), &CodeTheme::from_style(ui.style()), string, "rs");
+            let mut layout_job = highlight(
+                ui.ctx(),
+                ui.style(),
+                &CodeTheme::from_style(ui.style()),
+                string,
+                "rs",
+            );
             layout_job.wrap.max_width = wrap_width;
             ui.fonts(|f| f.layout_job(layout_job))
         };
@@ -46,7 +53,7 @@ impl CodeView {
                                 .frame(false)
                                 .lock_focus(true)
                                 .layouter(&mut layouter)
-                                .hint_text("Type your code here...")
+                                .hint_text("Type your code here..."),
                         );
                     });
 
@@ -54,12 +61,15 @@ impl CodeView {
                 if button.clicked() {
                     let pattern = hooklib::script::PatternScript::eval_script(&self.code);
                     match pattern {
-                        Ok(pattern) => {
-                            Some(model_from_pattern(&pattern))
+                        Ok(pattern) => Some(model_from_pattern(&pattern)),
+                        Err(err) => {
+                            eprintln!("{:?}", err);
+                            None
                         }
-                        Err(err) => { eprintln!("{:?}", err); None },
                     }
-                } else { None }
+                } else {
+                    None
+                }
             });
 
         model.inner

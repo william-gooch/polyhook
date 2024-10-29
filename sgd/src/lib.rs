@@ -1,6 +1,6 @@
-use rand::prelude::*;
 use glam::Vec3;
-use petgraph::{stable_graph::NodeIndex, Undirected, algo::dijkstra};
+use petgraph::{algo::dijkstra, stable_graph::NodeIndex, Undirected};
+use rand::prelude::*;
 
 #[derive(Debug)]
 struct Term {
@@ -15,8 +15,16 @@ type Graph = petgraph::Graph<Vec3, f32, Undirected>;
 const EPSILON: f32 = 0.01;
 
 fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
-    let w_min = terms.iter().min_by(|a, b| a.w.partial_cmp(&b.w).expect("tried to compare NaN")).unwrap().w;
-    let w_max = terms.iter().max_by(|a, b| a.w.partial_cmp(&b.w).expect("tried to compare NaN")).unwrap().w;
+    let w_min = terms
+        .iter()
+        .min_by(|a, b| a.w.partial_cmp(&b.w).expect("tried to compare NaN"))
+        .unwrap()
+        .w;
+    let w_max = terms
+        .iter()
+        .max_by(|a, b| a.w.partial_cmp(&b.w).expect("tried to compare NaN"))
+        .unwrap()
+        .w;
 
     let eta_max = 1.0 / w_min;
     let eta_min = EPSILON / w_max;
@@ -29,10 +37,18 @@ fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
 }
 
 pub fn sgd<N, E: Into<f32> + Clone>(g: &petgraph::Graph<N, E>) -> Graph {
-    let mut graph = g.filter_map(
-        |_ix, _node| Some(Vec3::new(rand::thread_rng().gen_range(0.0..1.0), rand::thread_rng().gen_range(0.0..1.0), rand::thread_rng().gen_range(0.0..1.0))),
-        |_ix, edge| Some(edge.clone().into())
-    ).into_edge_type::<Undirected>();
+    let mut graph = g
+        .filter_map(
+            |_ix, _node| {
+                Some(Vec3::new(
+                    rand::thread_rng().gen_range(0.0..1.0),
+                    rand::thread_rng().gen_range(0.0..1.0),
+                    rand::thread_rng().gen_range(0.0..1.0),
+                ))
+            },
+            |_ix, edge| Some(edge.clone().into()),
+        )
+        .into_edge_type::<Undirected>();
 
     let nodes = graph.node_indices().collect::<Vec<_>>();
     let mut terms = nodes
@@ -45,7 +61,12 @@ pub fn sgd<N, E: Into<f32> + Clone>(g: &petgraph::Graph<N, E>) -> Graph {
                 .collect::<Vec<_>>()
         })
         .filter(|(start, end, _)| *start < end)
-        .map(|(start, end, cost)| Term { start: *start, end, d: cost, w: 1.0 / (cost * cost) })
+        .map(|(start, end, cost)| Term {
+            start: *start,
+            end,
+            d: cost,
+            w: 1.0 / (cost * cost),
+        })
         .collect::<Vec<_>>();
     terms.shuffle(&mut rand::thread_rng());
 
@@ -62,7 +83,7 @@ pub fn sgd<N, E: Into<f32> + Clone>(g: &petgraph::Graph<N, E>) -> Graph {
             // distance constraint
             let r = (mu * (mag - term.d)) / (2.0 * mag);
             let rv = r * d;
-            
+
             graph[term.start] = p_i - rv;
             graph[term.end] = p_j + rv;
         }
@@ -101,7 +122,7 @@ mod tests {
             pattern.dc_noskip();
             pattern.skip_rev();
         }
-        
+
         for j in 1..20 {
             for _ in 1..=6 {
                 for _ in 1..=j {

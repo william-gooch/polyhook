@@ -1,7 +1,7 @@
+use crate::model::ModelData;
 use hooklib::pattern::Pattern;
 use petgraph::visit::EdgeRef;
 use sgd::sgd;
-use crate::model::ModelData;
 
 use super::Vertex;
 

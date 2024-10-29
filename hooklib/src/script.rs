@@ -9,13 +9,22 @@ pub struct PatternScript;
 impl PatternScript {
     pub fn eval_script(script: &str) -> Result<Pattern, Box<dyn std::error::Error>> {
         let mut engine = Engine::new();
-        
+
         let pattern = Rc::new(RefCell::new(Pattern::default()));
 
         engine
-            .register_fn("new_row", { let pattern = pattern.clone(); move || pattern.borrow_mut().new_row() })
-            .register_fn("chain",   { let pattern = pattern.clone(); move || pattern.borrow_mut().chain() })
-            .register_fn("dc",      { let pattern = pattern.clone(); move || pattern.borrow_mut().dc() });
+            .register_fn("new_row", {
+                let pattern = pattern.clone();
+                move || pattern.borrow_mut().new_row()
+            })
+            .register_fn("chain", {
+                let pattern = pattern.clone();
+                move || pattern.borrow_mut().chain()
+            })
+            .register_fn("dc", {
+                let pattern = pattern.clone();
+                move || pattern.borrow_mut().dc()
+            });
 
         let _ = engine.run(script)?;
 
@@ -29,7 +38,8 @@ mod tests {
 
     #[test]
     fn test_script() {
-        let pattern = PatternScript::eval_script(r#"
+        let pattern = PatternScript::eval_script(
+            r#"
             new_row();
             for _c in 1..=15 {
                 chain();
@@ -40,8 +50,9 @@ mod tests {
                     dc();
                 }
             }
-        "#)
-            .expect("Error in evaluating script");
+        "#,
+        )
+        .expect("Error in evaluating script");
 
         assert_eq!(pattern, crate::pattern::test_pattern_3());
     }

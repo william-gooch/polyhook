@@ -57,12 +57,13 @@ impl Renderer {
             .renderer
             .write()
             .callback_resources
-            .insert(RendererResources {
-                pipeline,
-                model,
-            });
+            .insert(RendererResources { pipeline, model });
 
-        Some(Self { mvp: MVP::new(), render_state: wgpu_render_state.clone(), shader })
+        Some(Self {
+            mvp: MVP::new(),
+            render_state: wgpu_render_state.clone(),
+            shader,
+        })
     }
 
     pub fn set_model(&mut self, model: ModelData) {

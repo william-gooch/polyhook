@@ -1,12 +1,12 @@
-mod transform;
+mod model;
 mod render;
 mod shader;
-mod model;
+mod transform;
 
 mod code_view;
 
-use std::sync::Arc;
 use egui::Vec2;
+use std::sync::Arc;
 
 struct App {
     code_view: code_view::CodeView,
@@ -19,14 +19,15 @@ impl App {
         let ctx = &cc.egui_ctx;
         let mut style = (*ctx.style()).clone();
 
-        use egui::{FontId, FontFamily::Proportional, TextStyle::*};
+        use egui::{FontFamily::Proportional, FontId, TextStyle::*};
         style.text_styles = [
             (Heading, FontId::new(30.0, Proportional)),
             (Body, FontId::new(18.0, Proportional)),
             (Monospace, FontId::new(18.0, egui::FontFamily::Monospace)),
             (Button, FontId::new(14.0, Proportional)),
             (Small, FontId::new(10.0, Proportional)),
-        ].into();
+        ]
+        .into();
         ctx.set_style(style);
 
         Self {

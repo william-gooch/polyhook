@@ -12,7 +12,9 @@ impl Orbit {
     }
 
     pub fn matrix(&self) -> glam::Mat4 {
-        glam::Mat4::from_translation(glam::vec3(0.0, 0.0, self.d)) * glam::Mat4::from_rotation_x(self.phi) * glam::Mat4::from_rotation_y(self.theta) 
+        glam::Mat4::from_translation(glam::vec3(0.0, 0.0, self.d))
+            * glam::Mat4::from_rotation_x(self.phi)
+            * glam::Mat4::from_rotation_y(self.theta)
     }
 }
 

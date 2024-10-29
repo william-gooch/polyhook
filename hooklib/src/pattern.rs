@@ -2,29 +2,21 @@ use petgraph::{graph, visit::EdgeRef, Direction};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Node {
-    Stitch {
-        ty: &'static str,
-    },
+    Stitch { ty: &'static str },
     ChainSpace,
 }
 
 impl Node {
     fn chain() -> Self {
-        Self::Stitch {
-            ty: "ch",
-        }
+        Self::Stitch { ty: "ch" }
     }
 
     fn dc() -> Self {
-        Self::Stitch {
-            ty: "dc",
-        }
+        Self::Stitch { ty: "dc" }
     }
 
     fn decrease() -> Self {
-        Self::Stitch {
-            ty: "dec",
-        }
+        Self::Stitch { ty: "dec" }
     }
 
     fn ch_sp() -> Self {
@@ -62,7 +54,12 @@ pub struct Pattern {
 
 impl PartialEq for Pattern {
     fn eq(&self, other: &Self) -> bool {
-        petgraph::algo::is_isomorphic_matching(self.graph(), other.graph(), PartialEq::eq, PartialEq::eq)
+        petgraph::algo::is_isomorphic_matching(
+            self.graph(),
+            other.graph(),
+            PartialEq::eq,
+            PartialEq::eq,
+        )
     }
 }
 
@@ -80,28 +77,41 @@ impl Pattern {
     }
 
     pub fn to_graphviz(&self) -> String {
-        use petgraph::dot::{Dot, Config};
+        use petgraph::dot::{Config, Dot};
 
         let node_attr_getter = |_g, (id, &ref n)| {
             let options = match n {
                 Node::Stitch { ty: "ch" } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
-                Node::Stitch { ty: "dc" } => "shape = \"none\" label = \"+\" margin = \"0\" fontsize = 56.0",
-                _ => "shape = \"point\" label = \"\""
+                Node::Stitch { ty: "dc" } => {
+                    "shape = \"none\" label = \"+\" margin = \"0\" fontsize = 56.0"
+                }
+                _ => "shape = \"point\" label = \"\"",
             };
-            let style = if id == self.start.unwrap() { "filled" } else { "" };
+            let style = if id == self.start.unwrap() {
+                "filled"
+            } else {
+                ""
+            };
 
             format!("{options} style=\"{style}\"")
         };
 
         let dot = Dot::with_attr_getters(
             self.graph(),
-            &[Config::EdgeNoLabel, Config::NodeNoLabel, Config::GraphContentOnly],
-            &|_g, e| match e.weight() {
-                EdgeType::Previous => "len = 1.0",
-                EdgeType::Insert => r#"len = 1.0 style = "dotted" arrowhead="vee""#,
-                EdgeType::Slip => "len = 1.0 style = \"dashed\"",
-                EdgeType::Neighbour => "len = 1.0 style = \"invis\"",
-            }.into(),
+            &[
+                Config::EdgeNoLabel,
+                Config::NodeNoLabel,
+                Config::GraphContentOnly,
+            ],
+            &|_g, e| {
+                match e.weight() {
+                    EdgeType::Previous => "len = 1.0",
+                    EdgeType::Insert => r#"len = 1.0 style = "dotted" arrowhead="vee""#,
+                    EdgeType::Slip => "len = 1.0 style = \"dashed\"",
+                    EdgeType::Neighbour => "len = 1.0 style = \"invis\"",
+                }
+                .into()
+            },
             &node_attr_getter,
         );
 
@@ -130,20 +140,25 @@ impl Pattern {
     }
 
     pub fn skip(&mut self) {
-        self.insert = self.graph.edges_directed(self.insert.unwrap(), Direction::Outgoing)
+        self.insert = self
+            .graph
+            .edges_directed(self.insert.unwrap(), Direction::Outgoing)
             .find(|e| *e.weight() == EdgeType::Previous)
             .map(|e| e.target());
     }
 
     pub fn skip_rev(&mut self) {
-        self.insert = self.graph.edges_directed(self.insert.unwrap(), Direction::Incoming)
+        self.insert = self
+            .graph
+            .edges_directed(self.insert.unwrap(), Direction::Incoming)
             .find(|e| *e.weight() == EdgeType::Previous)
             .map(|e| e.source());
     }
 
     pub fn chain(&mut self) {
         let new_node = self.graph.add_node(Node::chain());
-        self.graph.add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+        self.graph
+            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
         self.prev = Some(new_node);
 
         if let Some(ch_sp) = self.current_ch_sp.as_mut() {
@@ -153,8 +168,10 @@ impl Pattern {
 
     pub fn dc(&mut self) {
         let new_node = self.graph.add_node(Node::dc());
-        self.graph.add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
-        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.graph
+            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+        self.graph
+            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
 
         self.prev = Some(new_node);
@@ -162,29 +179,37 @@ impl Pattern {
 
     pub fn dc_noskip(&mut self) {
         let new_node = self.graph.add_node(Node::dc());
-        self.graph.add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
-        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.graph
+            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+        self.graph
+            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
 
         self.prev = Some(new_node);
     }
 
     pub fn dec(&mut self) {
         let new_node = self.graph.add_node(Node::decrease());
-        self.graph.add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
-        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.graph
+            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+        self.graph
+            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
-        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.graph
+            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
 
         self.prev = Some(new_node);
     }
-    
+
     pub fn dec_rev(&mut self) {
         let new_node = self.graph.add_node(Node::decrease());
-        self.graph.add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
-        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.graph
+            .add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+        self.graph
+            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip_rev();
-        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.graph
+            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip_rev();
 
         self.prev = Some(new_node);
@@ -196,7 +221,8 @@ impl Pattern {
     }
 
     pub fn slip_stitch(&mut self, into: graph::NodeIndex) {
-        self.graph.add_edge(self.prev.unwrap(), into, EdgeType::Slip);
+        self.graph
+            .add_edge(self.prev.unwrap(), into, EdgeType::Slip);
     }
 
     pub fn start_ch_sp(&mut self) {
@@ -208,14 +234,16 @@ impl Pattern {
     }
 
     pub fn end_ch_sp(&mut self) -> graph::NodeIndex {
-        let ch_sp = self.current_ch_sp.take()
+        let ch_sp = self
+            .current_ch_sp
+            .take()
             .expect("tried to end a chain space while none was started!");
 
         let new_node = self.graph.add_node(Node::ch_sp());
-        ch_sp.into_iter()
-            .for_each(|neighbour| {
-                self.graph.add_edge(new_node, neighbour, EdgeType::Neighbour);
-            });
+        ch_sp.into_iter().for_each(|neighbour| {
+            self.graph
+                .add_edge(new_node, neighbour, EdgeType::Neighbour);
+        });
 
         new_node
     }
@@ -245,7 +273,7 @@ pub fn test_pattern() -> Pattern {
         pattern.dc_noskip();
         pattern.skip_rev();
     }
-    
+
     for j in 1..20 {
         for _ in 1..=6 {
             for _ in 1..=j {
@@ -279,7 +307,7 @@ pub fn test_pattern_sphere() -> Pattern {
         pattern.dc_noskip();
     }
     pattern.set_insert(start);
-    
+
     for j in 0..=4 {
         for _ in 1..=6 {
             for _ in 1..=j {
@@ -420,7 +448,7 @@ mod tests {
             pattern.dc_noskip();
             pattern.skip_rev();
         }
-        
+
         for j in 1..20 {
             for _ in 1..=6 {
                 for _ in 1..=j {
@@ -432,7 +460,6 @@ mod tests {
                 pattern.skip_rev();
             }
         }
-        
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/spiral.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();

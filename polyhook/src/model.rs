@@ -22,13 +22,11 @@ impl Vertex {
         wgpu::VertexBufferLayout {
             array_stride: size_of::<Vertex>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 0,
-                    shader_location: 0,
-                },
-            ],
+            attributes: &[wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: 0,
+                shader_location: 0,
+            }],
         }
     }
 }
@@ -79,7 +77,7 @@ impl Model {
             contents: bytemuck::cast_slice(glam::Mat4::IDENTITY.as_ref()),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
         });
-        
+
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("polyhook_bdg"),
             layout: shader.bind_group_layout(),
@@ -93,14 +91,11 @@ impl Model {
             vertex: vertex_buffer,
             index: index_buffer,
             uniform: uniform_buffer,
-            bind_group
+            bind_group,
         };
         let buffers = Arc::new(buffers);
 
-        Self {
-            data,
-            buffers,
-        }
+        Self { data, buffers }
     }
 
     pub fn draw(&self, render_pass: &mut wgpu::RenderPass<'_>) {

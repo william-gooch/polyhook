@@ -16,8 +16,8 @@ impl Shader {
     pub fn new_shader(device: &wgpu::Device) -> Self {
         let shader = device.create_shader_module(Self::shader_module_descriptor());
 
-        let bind_group_layout: wgpu::BindGroupLayout = device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
+        let bind_group_layout: wgpu::BindGroupLayout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("polyhook"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -29,8 +29,7 @@ impl Shader {
                     },
                     count: None,
                 }],
-            }
-        );
+            });
 
         Self {
             shader,
