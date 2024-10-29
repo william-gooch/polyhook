@@ -134,13 +134,13 @@ impl Pattern {
         format!("digraph {{\n    normalize = 180\n{:?}}}", dot)
     }
 
-    pub fn new_row(&mut self) {
+    pub fn turn(&mut self) {
         self.insert = Some(self.prev);
         self.chain();
         self.skip();
     }
 
-    pub fn new_row_noskip(&mut self) {
+    pub fn turn_noskip(&mut self) {
         self.insert = Some(self.prev);
         self.chain();
     }
@@ -354,7 +354,7 @@ pub fn test_pattern_joined_rounds() -> Pattern {
     }
     pattern.slip_stitch(start);
 
-    pattern.new_row_noskip();
+    pattern.turn_noskip();
     let start = pattern.prev();
     pattern.dc();
     for _ in 1..=5 {
@@ -363,7 +363,7 @@ pub fn test_pattern_joined_rounds() -> Pattern {
     pattern.slip_stitch(start);
 
     for round in 1..=20 {
-        pattern.new_row();
+        pattern.turn();
         let start = pattern.prev();
         for _ in 1..=5 {
             pattern.inc();
@@ -388,7 +388,7 @@ pub fn test_pattern_flat() -> Pattern {
     }
 
     for _ in 1..=15 {
-        pattern.new_row();
+        pattern.turn();
         for _ in 1..=15 {
             pattern.dc();
         }

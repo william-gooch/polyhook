@@ -9,15 +9,13 @@ pub struct CodeView {
 impl Default for CodeView {
     fn default() -> Self {
         Self {
-            code: r#"for _c in 1..=15 {
-    chain();
+            code: r#"
+15 # chain;
+15 # || {
+    turn();
+    15 # dc;
 }
-for _r in 1..=15 {
-    new_row();
-    for _s in 1..=15 {
-        dc();
-    }
-}"#
+            "#
             .into(),
         }
     }
