@@ -1,17 +1,36 @@
 mod transform;
 mod render;
+mod shader;
+mod model;
+
+mod code_view;
 
 use std::sync::Arc;
 use egui::Vec2;
 
 struct App {
+    code_view: code_view::CodeView,
     renderer: render::Renderer,
     orbit: transform::Orbit,
 }
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let ctx = &cc.egui_ctx;
+        let mut style = (*ctx.style()).clone();
+
+        use egui::{FontId, FontFamily::Proportional, TextStyle::*};
+        style.text_styles = [
+            (Heading, FontId::new(30.0, Proportional)),
+            (Body, FontId::new(18.0, Proportional)),
+            (Monospace, FontId::new(18.0, egui::FontFamily::Monospace)),
+            (Button, FontId::new(14.0, Proportional)),
+            (Small, FontId::new(10.0, Proportional)),
+        ].into();
+        ctx.set_style(style);
+
         Self {
+            code_view: Default::default(),
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
             orbit: transform::Orbit {
                 phi: 0.0,
@@ -27,13 +46,13 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::SidePanel::left("left_panel")
                 .resizable(true)
-                .default_width(150.0)
-                .show_inside(ui, |ui| {
-                    ui.heading(format!(
-                        "Hello, world! The window size is {} by {}",
-                        ctx.screen_rect().width(),
-                        ctx.screen_rect().height()
-                    ));
+                .default_width(ui.available_width() * 0.5)
+                .show_inside(ui, |mut ui| {
+                    let new_model = self.code_view.code_view_show(&mut ui);
+                    if let Some(new_model) = new_model {
+                        // TODO: switch the model to the new one
+                        self.renderer.set_model(new_model);
+                    }
                 });
 
             egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -61,7 +80,7 @@ impl eframe::App for App {
             });
         });
 
-        self.renderer.mvp.model = glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model;
+        //self.renderer.mvp.model = glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model;
         ctx.request_repaint();
     }
 }

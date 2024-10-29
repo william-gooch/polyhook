@@ -2,7 +2,7 @@ use petgraph::{graph, visit::{EdgeRef, NodeCount}, Direction};
 
 type Id = graph::NodeIndex;
 
-#[derive(Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Node {
     Stitch {
         ty: &'static str,
@@ -42,13 +42,30 @@ pub enum EdgeType {
     Neighbour,
 }
 
-#[derive(Default)]
+impl Into<f32> for EdgeType {
+    fn into(self) -> f32 {
+        match self {
+            EdgeType::Previous => 1.0,
+            EdgeType::Insert => 0.75,
+            EdgeType::Slip => 0.000001,
+            EdgeType::Neighbour => 1.0,
+        }
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct Pattern {
     graph: graph::DiGraph<Node, EdgeType>,
     start: Option<graph::NodeIndex>,
     prev: Option<graph::NodeIndex>,
     insert: Option<graph::NodeIndex>,
     current_ch_sp: Option<Vec<graph::NodeIndex>>,
+}
+
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Self) -> bool {
+        petgraph::algo::is_isomorphic_matching(self.graph(), other.graph(), PartialEq::eq, PartialEq::eq)
+    }
 }
 
 impl Pattern {
@@ -163,6 +180,17 @@ impl Pattern {
 
         self.prev = Some(new_node);
     }
+    
+    pub fn dec_rev(&mut self) {
+        let new_node = self.graph.add_node(Node::decrease());
+        self.graph.add_edge(new_node, self.prev.unwrap(), EdgeType::Previous);
+        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.skip_rev();
+        self.graph.add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+        self.skip_rev();
+
+        self.prev = Some(new_node);
+    }
 
     pub fn inc(&mut self) {
         self.dc_noskip();
@@ -171,8 +199,6 @@ impl Pattern {
 
     pub fn slip_stitch(&mut self, into: graph::NodeIndex) {
         self.graph.add_edge(self.prev.unwrap(), into, EdgeType::Slip);
-        // self.insert = self.prev;
-        // self.prev = Some(into);
     }
 
     pub fn start_ch_sp(&mut self) {
@@ -195,6 +221,154 @@ impl Pattern {
 
         new_node
     }
+}
+
+pub fn test_pattern() -> Pattern {
+    let mut pattern = Pattern::default();
+
+    pattern.new_row();
+    pattern.start_ch_sp();
+    let start = pattern.prev().unwrap();
+    for _ in 1..=2 {
+        pattern.chain();
+    }
+    pattern.slip_stitch(start);
+    let ch_sp = pattern.end_ch_sp();
+
+    pattern.set_insert(ch_sp);
+    let start = pattern.prev().unwrap();
+    for _ in 1..=5 {
+        pattern.dc_noskip();
+    }
+    pattern.set_insert(start);
+
+    for _ in 1..=6 {
+        pattern.dc_noskip();
+        pattern.dc_noskip();
+        pattern.skip_rev();
+    }
+    
+    for j in 1..20 {
+        for _ in 1..=6 {
+            for _ in 1..=j {
+                pattern.dc_noskip();
+                pattern.skip_rev();
+            }
+            pattern.dc_noskip();
+            pattern.dc_noskip();
+            pattern.skip_rev();
+        }
+    }
+
+    pattern
+}
+
+pub fn test_pattern_sphere() -> Pattern {
+    let mut pattern = Pattern::default();
+
+    pattern.new_row();
+    pattern.start_ch_sp();
+    let start = pattern.prev().unwrap();
+    for _ in 1..=2 {
+        pattern.chain();
+    }
+    pattern.slip_stitch(start);
+    let ch_sp = pattern.end_ch_sp();
+
+    pattern.set_insert(ch_sp);
+    let start = pattern.prev().unwrap();
+    for _ in 1..=5 {
+        pattern.dc_noskip();
+    }
+    pattern.set_insert(start);
+    
+    for j in 0..=4 {
+        for _ in 1..=6 {
+            for _ in 1..=j {
+                pattern.dc_noskip();
+                pattern.skip_rev();
+            }
+            pattern.dc_noskip();
+            pattern.dc_noskip();
+            pattern.skip_rev();
+        }
+    }
+
+    for _ in 1..=7 {
+        for _ in 1..=36 {
+            pattern.dc_noskip();
+            pattern.skip_rev();
+        }
+    }
+
+    for j in (0..=4).rev() {
+        for _ in 1..=6 {
+            for _ in 1..=j {
+                pattern.dc_noskip();
+                pattern.skip_rev();
+            }
+            pattern.dec_rev();
+        }
+    }
+
+    pattern.dec_rev();
+    pattern.dec_rev();
+
+    pattern
+}
+
+pub fn test_pattern_2() -> Pattern {
+    let mut pattern = Pattern::default();
+
+    pattern.new_row();
+    let start = pattern.prev().unwrap();
+    for _ in 1..=5 {
+        pattern.chain();
+    }
+    pattern.slip_stitch(start);
+
+    pattern.new_row_noskip();
+    let start = pattern.prev().unwrap();
+    pattern.dc();
+    for _ in 1..=5 {
+        pattern.inc();
+    }
+    pattern.slip_stitch(start);
+
+    for round in 1..=20 {
+        pattern.new_row();
+        let start = pattern.prev().unwrap();
+        for _ in 1..=5 {
+            pattern.inc();
+            for _ in 1..=round {
+                pattern.dc();
+            }
+        }
+        pattern.inc();
+        for _ in 1..round {
+            pattern.dc();
+        }
+        pattern.slip_stitch(start);
+    }
+
+    pattern
+}
+
+pub fn test_pattern_3() -> Pattern {
+    let mut pattern = Pattern::default();
+
+    pattern.new_row();
+    for _ in 1..=15 {
+        pattern.chain();
+    }
+    for _ in 1..=15 {
+        pattern.new_row();
+        for _ in 1..=15 {
+            pattern.dc();
+        }
+    }
+
+    pattern
 }
 
 #[cfg(test)]

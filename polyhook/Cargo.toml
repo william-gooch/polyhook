@@ -6,8 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+petgraph = { workspace = true }
 bytemuck = { version = "1.18.0", features = ["derive"] }
-eframe = { version = "0.28.1", features = ["wgpu"] }
+eframe = { version = "0.29.1", features = ["wgpu"] }
 glam = { workspace = true }
-egui = "0.28.1"
+egui = "0.29.1"
 hooklib = { path = "../hooklib" }
+sgd = { path = "../sgd" }
+egui_extras = { version = "0.29.1", features = ["syntect"] }

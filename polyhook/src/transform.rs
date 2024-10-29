@@ -16,6 +16,7 @@ impl Orbit {
     }
 }
 
+#[derive(Clone)]
 pub struct MVP {
     pub model: glam::Mat4,
     pub view: glam::Mat4,

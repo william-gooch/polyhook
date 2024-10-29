@@ -1,64 +1,26 @@
+use crate::model::pattern_model::model_from_pattern;
+use crate::model::{cube, Model, ModelData, Vertex};
+use crate::shader::Shader;
 use crate::transform::MVP;
 
-use bytemuck::{Pod, Zeroable};
 use eframe::egui_wgpu;
 use eframe::egui_wgpu::wgpu;
-use eframe::wgpu::util::{DeviceExt, RenderEncoder};
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct Vertex([f32; 4]);
-
-const VERTICES: [Vertex; 8] = [
-    Vertex([-1.,  1., -1., 1.]), // ulb
-    Vertex([-1.,  1.,  1., 1.]), // ulf
-    Vertex([ 1.,  1., -1., 1.]), // urb
-    Vertex([ 1.,  1.,  1., 1.]), // urf
-    Vertex([-1., -1., -1., 1.]), // dlb
-    Vertex([-1., -1.,  1., 1.]), // dlf
-    Vertex([ 1., -1., -1., 1.]), // drb
-    Vertex([ 1., -1.,  1., 1.]), // drf
-];
-
-const INDICES: [u16; 36] = [
-    0, 1, 2, 2, 3, 1, // up
-    4, 5, 6, 6, 7, 5, // down
-    0, 1, 4, 4, 5, 1, // left
-    2, 3, 6, 6, 7, 3, // right
-    0, 2, 4, 4, 6, 2, // back
-    1, 3, 5, 5, 7, 3, // front
-];
 
 pub struct Renderer {
     pub mvp: MVP,
+    render_state: egui_wgpu::RenderState,
+    shader: Shader,
 }
 
 impl Renderer {
     pub fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Option<Self> {
         let device = &wgpu_render_state.device;
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("polyhook"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("./shader.wgsl").into()),
-        });
-
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("polyhook"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: std::num::NonZeroU64::new(64),
-                },
-                count: None,
-            }],
-        });
+        let shader = Shader::new_shader(&device);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("polyhook"),
-            bind_group_layouts: &[&bind_group_layout],
+            bind_group_layouts: &[shader.bind_group_layout()],
             push_constant_ranges: &[],
         });
 
@@ -66,63 +28,30 @@ impl Renderer {
             label: Some("polyhook"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: shader.module(),
                 entry_point: "vs_main",
-                buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: size_of::<Vertex>() as u64,
-                    step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &[
-                        wgpu::VertexAttribute {
-                            format: wgpu::VertexFormat::Float32x4,
-                            offset: 0,
-                            shader_location: 0,
-                        },
-                    ],
-                }],
+                buffers: &[Vertex::buffer_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: shader.module(),
                 entry_point: "fs_main",
                 targets: &[Some(wgpu_render_state.target_format.into())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState {
                 polygon_mode: wgpu::PolygonMode::Line,
-                // topology: wgpu::PrimitiveTopology::LineList,
+                topology: wgpu::PrimitiveTopology::LineList,
                 ..Default::default()
             },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
+            cache: Default::default(),
         });
 
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("polyhook_uni"),
-            contents: bytemuck::cast_slice(glam::Mat4::IDENTITY.as_ref()),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
-        });
-
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("polyhook_vtx"),
-            contents: bytemuck::cast_slice(&VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("polyhook_idx"),
-            contents: bytemuck::cast_slice(&INDICES),
-            usage: wgpu::BufferUsages::INDEX,
-        });
-
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("polyhook"),
-            layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
+        let pattern = hooklib::pattern::test_pattern_sphere();
+        let model = Model::new(model_from_pattern(&pattern), &device, &shader);
 
         wgpu_render_state
             .renderer
@@ -130,13 +59,22 @@ impl Renderer {
             .callback_resources
             .insert(RendererResources {
                 pipeline,
-                bind_group,
-                uniform_buffer,
-                vertex_buffer,
-                index_buffer,
+                model,
             });
 
-        Some(Self { mvp: MVP::new() })
+        Some(Self { mvp: MVP::new(), render_state: wgpu_render_state.clone(), shader })
+    }
+
+    pub fn set_model(&mut self, model: ModelData) {
+        let model = Model::new(model, &self.render_state.device, &self.shader);
+
+        let mut state = self.render_state.renderer.write();
+        let resources = state
+            .callback_resources
+            .get_mut::<RendererResources>()
+            .expect("Couldn't get renderer resources");
+
+        resources.model = model;
     }
 }
 
@@ -156,11 +94,11 @@ impl egui_wgpu::CallbackTrait for RendererCallback {
         Vec::new()
     }
 
-    fn paint<'a>(
-        &'a self,
+    fn paint(
+        &self,
         info: egui::PaintCallbackInfo,
-        render_pass: &mut eframe::wgpu::RenderPass<'a>,
-        callback_resources: &'a egui_wgpu::CallbackResources,
+        render_pass: &mut eframe::wgpu::RenderPass<'static>,
+        callback_resources: &egui_wgpu::CallbackResources,
     ) {
         let resources: &RendererResources = callback_resources.get().unwrap();
         resources.paint(render_pass);
@@ -169,26 +107,16 @@ impl egui_wgpu::CallbackTrait for RendererCallback {
 
 struct RendererResources {
     pipeline: wgpu::RenderPipeline,
-    bind_group: wgpu::BindGroup,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    uniform_buffer: wgpu::Buffer,
+    model: Model,
 }
 
 impl RendererResources {
     fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, params: &RendererCallback) {
-        queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::cast_slice(params.0.as_ref()),
-        );
+        self.model.write_uniform(queue, &params.0);
     }
 
-    fn paint<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    fn paint(&self, render_pass: &mut wgpu::RenderPass<'_>) {
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.draw_indexed(0..(INDICES.len() as u32), 0, 0..1);
+        self.model.draw(render_pass);
     }
 }

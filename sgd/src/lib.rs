@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use itertools::Itertools;
-use glam::Vec2;
+use glam::Vec3;
 use petgraph::{stable_graph::NodeIndex, Undirected, algo::dijkstra};
 
 #[derive(Debug)]
@@ -11,11 +11,11 @@ struct Term {
     w: f32,
 }
 
-type Graph = petgraph::Graph<Vec2, f32, Undirected>;
+type Graph = petgraph::Graph<Vec3, f32, Undirected>;
 
 const EPSILON: f32 = 0.01;
 
-pub fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
+fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
     let w_min = terms.iter().min_by(|a, b| a.w.partial_cmp(&b.w).expect("tried to compare NaN")).unwrap().w;
     let w_max = terms.iter().max_by(|a, b| a.w.partial_cmp(&b.w).expect("tried to compare NaN")).unwrap().w;
 
@@ -29,10 +29,10 @@ pub fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
         .collect::<Vec<_>>()
 }
 
-pub fn sgd<N, E>(g: &petgraph::Graph<N, E>) -> Graph {
+pub fn sgd<N, E: Into<f32> + Clone>(g: &petgraph::Graph<N, E>) -> Graph {
     let mut graph = g.filter_map(
-        |ix, node| Some(Vec2::new(rand::thread_rng().gen_range(0.0..1.0), rand::thread_rng().gen_range(0.0..1.0))),
-        |ix, edge| Some(1.0)
+        |_ix, _node| Some(Vec3::new(rand::thread_rng().gen_range(0.0..1.0), rand::thread_rng().gen_range(0.0..1.0), rand::thread_rng().gen_range(0.0..1.0))),
+        |_ix, edge| Some(edge.clone().into())
     ).into_edge_type::<Undirected>();
 
     let nodes = graph.node_indices().collect::<Vec<_>>();
@@ -40,7 +40,7 @@ pub fn sgd<N, E>(g: &petgraph::Graph<N, E>) -> Graph {
         .iter()
         .take(nodes.len() - 1)
         .flat_map(|node| {
-            dijkstra::dijkstra(&graph, *node, None, |e| 1.0)
+            dijkstra::dijkstra(&graph, *node, None, |e| *e.weight())
                 .into_iter()
                 .map(|(end, cost)| (node, end, cost))
                 .collect::<Vec<_>>()
@@ -60,16 +60,13 @@ pub fn sgd<N, E>(g: &petgraph::Graph<N, E>) -> Graph {
             let d = p_i - p_j;
             let mag = d.length();
 
+            // distance constraint
             let r = (mu * (mag - term.d)) / (2.0 * mag);
             let rv = r * d;
             
             graph[term.start] = p_i - rv;
             graph[term.end] = p_j + rv;
         }
-    }
-
-    for w in graph.node_weights() {
-        println!("{}", w);
     }
 
     graph
@@ -119,5 +116,9 @@ mod tests {
         }
 
         let graph = sgd(pattern.graph());
+
+        for w in graph.node_weights() {
+            println!("{}", w);
+        }
     }
 }
