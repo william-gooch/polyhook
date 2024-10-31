@@ -84,21 +84,6 @@ impl Pattern {
         self.start
     }
 
-    pub fn first_edge(&self) -> graph::EdgeIndex {
-        self.graph
-            .edges_directed(self.start, Direction::Incoming)
-            .find(|e| *e.weight() == EdgeType::Previous)
-            .expect("No first node found.")
-            .id()
-    }
-
-    pub fn first_insert(&self) -> Option<graph::EdgeIndex> {
-        self.graph
-            .edges_directed(self.start, Direction::Incoming)
-            .find(|e| *e.weight() == EdgeType::Insert)
-            .map(|e| e.id())
-    }
-
     pub fn set_insert(&mut self, insert: graph::NodeIndex) {
         self.insert = Some(insert);
     }

@@ -124,29 +124,6 @@ pub fn sgd<C, N, E>(g: &petgraph::Graph<N, E>) -> Graph<C> where C: SDGCoords, E
     graph
 }
 
-// pub fn normalize(g: &mut Graph<Vec3>, start: EdgeIndex, insert: Option<EdgeIndex>) {
-//     let (start_node, second_node) = g.edge_endpoints(start).expect("Start edge not found.");
-//     let insert_node = insert.and_then(|insert| { g.edge_endpoints(insert).map(|e| e.0) });
-// 
-//     let start_pos = *g.node_weight(start_node).expect("Start node not found.");
-//     let second_pos = *g.node_weight(second_node).expect("Second node not found.");
-// 
-//     // let pointer_vec = (second_pos - start_pos).normalize();
-//     // let rotation = Quat::from_rotation_arc(pointer_vec, Vec3::Z);
-// 
-//     // let transform = Mat4::from_quat(rotation) * Mat4::from_translation(-start_pos); 
-//     let up = insert_node
-//         .and_then(|i| g.node_weight(i))
-//         .map(|v| (v - start_pos).normalize())
-//         .unwrap_or(Vec3::Y);
-//     let transform = Mat4::look_at_lh(start_pos, second_pos, up);
-// 
-//     g.node_weights_mut()
-//         .for_each(|p| {
-//             *p = (transform * (p.extend(1.0))).xyz()
-//         });
-// }
-
 pub fn normalize(g: &mut Graph<Vec3>) {
     let avg_position = g.node_weights().sum::<Vec3>() / g.node_count() as f32;
     let (central, central_pos) = g.node_references()
