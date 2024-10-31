@@ -1,4 +1,4 @@
-use petgraph::{graph, visit::EdgeRef, Direction, Graph};
+use petgraph::{graph::{self, EdgeReference}, visit::EdgeRef, Direction, Graph};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Node {
@@ -78,6 +78,25 @@ impl Pattern {
 
     pub fn prev(&self) -> graph::NodeIndex {
         self.prev
+    }
+
+    pub fn start(&self) -> graph::NodeIndex {
+        self.start
+    }
+
+    pub fn first_edge(&self) -> graph::EdgeIndex {
+        self.graph
+            .edges_directed(self.start, Direction::Incoming)
+            .find(|e| *e.weight() == EdgeType::Previous)
+            .expect("No first node found.")
+            .id()
+    }
+
+    pub fn first_insert(&self) -> Option<graph::EdgeIndex> {
+        self.graph
+            .edges_directed(self.start, Direction::Incoming)
+            .find(|e| *e.weight() == EdgeType::Insert)
+            .map(|e| e.id())
     }
 
     pub fn set_insert(&mut self, insert: graph::NodeIndex) {
@@ -271,19 +290,16 @@ pub fn test_pattern_spiral_rounds() -> Pattern {
 
     for _ in 1..=6 {
         pattern.dc_noskip();
-        pattern.dc_noskip();
-        pattern.skip();
+        pattern.dc();
     }
 
     for j in 1..20 {
         for _ in 1..=6 {
             for _ in 1..=j {
-                pattern.dc_noskip();
-                pattern.skip();
+                pattern.dc();
             }
             pattern.dc_noskip();
-            pattern.dc_noskip();
-            pattern.skip();
+            pattern.dc();
         }
     }
 
@@ -315,23 +331,20 @@ pub fn test_pattern_sphere() -> Pattern {
                 pattern.skip();
             }
             pattern.dc_noskip();
-            pattern.dc_noskip();
-            pattern.skip();
+            pattern.dc();
         }
     }
 
     for _ in 1..=7 {
         for _ in 1..=36 {
-            pattern.dc_noskip();
-            pattern.skip();
+            pattern.dc();
         }
     }
 
     for j in (0..=4).rev() {
         for _ in 1..=6 {
             for _ in 1..=j {
-                pattern.dc_noskip();
-                pattern.skip();
+                pattern.dc();
             }
             pattern.dec();
         }

@@ -7,7 +7,8 @@ use sgd::sgd;
 use super::Vertex;
 
 pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
-    let graph = sgd::<Vec3, _, _>(pattern.graph());
+    let mut graph = sgd::<Vec3, _, _>(pattern.graph());
+    sgd::normalize(&mut graph);
 
     ModelData {
         vertices: graph

@@ -1,4 +1,4 @@
-use rhai::{Dynamic, Engine, FnPtr, Locked, NativeCallContext, RhaiNativeFunc, Shared};
+use rhai::{Dynamic, Engine, EvalAltResult, FnPtr, Locked, NativeCallContext, RhaiNativeFunc, Shared};
 
 use crate::pattern::Pattern;
 
@@ -32,14 +32,16 @@ impl PatternScript {
             engine
                 .register_custom_operator("#", 160)
                 .unwrap()
-                .register_fn("#", |ctx: NativeCallContext, times: i64, func: FnPtr| {
+                .register_fn("#", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
                     for _ in 1..=times {
-                        func.call_within_context::<()>(&ctx, ()).unwrap();
+                        func.call_within_context::<()>(&ctx, ())?;
                     }
+                    Ok(())
                 })
                 .register_fn("turn", callback(pattern.clone(), Pattern::turn))
                 .register_fn("chain", callback(pattern.clone(), Pattern::chain))
                 .register_fn("dc", callback(pattern.clone(), Pattern::dc))
+                .register_fn("dc_", callback(pattern.clone(), Pattern::dc_noskip))
                 .on_var(|name, _index, ctx| {
                     let var = ctx.scope().get_value::<Dynamic>(name);
                     if let Some(var) = var {

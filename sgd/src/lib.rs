@@ -1,5 +1,6 @@
-use glam::{Vec2, Vec3};
-use petgraph::{algo::dijkstra, stable_graph::NodeIndex, Undirected};
+use glam::{Mat4, Quat, Vec2, Vec3, Vec4Swizzles};
+use itertools::Itertools;
+use petgraph::{algo::dijkstra, graph::{EdgeIndex, NodeIndex}, visit::{EdgeRef, IntoNodeReferences, NodeRef}, Undirected};
 use rand::prelude::*;
 use std::ops::{Add, Sub, Mul};
 
@@ -97,8 +98,8 @@ pub fn sgd<C, N, E>(g: &petgraph::Graph<N, E>) -> Graph<C> where C: SDGCoords, E
             w: 1.0 / (cost * cost),
         })
         .collect::<Vec<_>>();
-    terms.shuffle(&mut rand::thread_rng());
 
+    terms.shuffle(&mut rand::thread_rng());
     let etas: Vec<f32> = schedule(&terms, 30);
     for eta in etas {
         for term in terms.iter_mut() {
@@ -116,9 +117,56 @@ pub fn sgd<C, N, E>(g: &petgraph::Graph<N, E>) -> Graph<C> where C: SDGCoords, E
             graph[term.start] = p_i - rv;
             graph[term.end] = p_j + rv;
         }
+
+        terms.shuffle(&mut rand::thread_rng());
     }
 
     graph
+}
+
+// pub fn normalize(g: &mut Graph<Vec3>, start: EdgeIndex, insert: Option<EdgeIndex>) {
+//     let (start_node, second_node) = g.edge_endpoints(start).expect("Start edge not found.");
+//     let insert_node = insert.and_then(|insert| { g.edge_endpoints(insert).map(|e| e.0) });
+// 
+//     let start_pos = *g.node_weight(start_node).expect("Start node not found.");
+//     let second_pos = *g.node_weight(second_node).expect("Second node not found.");
+// 
+//     // let pointer_vec = (second_pos - start_pos).normalize();
+//     // let rotation = Quat::from_rotation_arc(pointer_vec, Vec3::Z);
+// 
+//     // let transform = Mat4::from_quat(rotation) * Mat4::from_translation(-start_pos); 
+//     let up = insert_node
+//         .and_then(|i| g.node_weight(i))
+//         .map(|v| (v - start_pos).normalize())
+//         .unwrap_or(Vec3::Y);
+//     let transform = Mat4::look_at_lh(start_pos, second_pos, up);
+// 
+//     g.node_weights_mut()
+//         .for_each(|p| {
+//             *p = (transform * (p.extend(1.0))).xyz()
+//         });
+// }
+
+pub fn normalize(g: &mut Graph<Vec3>) {
+    let avg_position = g.node_weights().sum::<Vec3>() / g.node_count() as f32;
+    let (central, central_pos) = g.node_references()
+        .min_by(|a, b| (*a.1 - avg_position).length_squared().total_cmp(&(*b.1 - avg_position).length_squared()))
+        .expect("Couldn't find central node.");
+
+    let neighbours: (Vec3, Vec3, Vec3) = g.edges(central)
+        .map(|e| if e.source() == central { e.target() } else { e.source() })
+        .map(|n| central_pos - g.node_weight(n).unwrap())
+        .take(3)
+        .next_tuple()
+        .expect("Node doesn't have at least 3 neighbours");
+
+    let normal = (neighbours.1 - neighbours.0).cross(neighbours.2 - neighbours.0).normalize();
+    let transform = Mat4::from_quat(Quat::from_rotation_arc_colinear(normal, Vec3::Y)) * Mat4::from_translation(-central_pos);
+
+    g.node_weights_mut()
+        .for_each(|p| {
+            *p = (transform * (p.extend(1.0))).xyz()
+        });
 }
 
 #[cfg(test)]
