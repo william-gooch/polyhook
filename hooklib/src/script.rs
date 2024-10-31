@@ -30,8 +30,8 @@ impl PatternScript {
 
             #[allow(deprecated)]
             engine
-                .register_custom_operator("#", 160)
-                .unwrap()
+                .register_custom_operator("#", 160).unwrap()
+                .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark")
                 .register_fn("#", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
                     for _ in 1..=times {
                         func.call_within_context::<()>(&ctx, ())?;
@@ -42,6 +42,27 @@ impl PatternScript {
                 .register_fn("chain", callback(pattern.clone(), Pattern::chain))
                 .register_fn("dc", callback(pattern.clone(), Pattern::dc))
                 .register_fn("dc_", callback(pattern.clone(), Pattern::dc_noskip))
+                .register_fn("mark", {
+                    let pattern = pattern.clone();
+                    move || pattern.borrow().prev()
+                })
+                .register_fn("ss", {
+                    let pattern = pattern.clone();
+                    move |into: petgraph::graph::NodeIndex| pattern.borrow_mut().slip_stitch(into)
+                })
+                .register_fn("into", {
+                    let pattern = pattern.clone();
+                    move |into: petgraph::graph::NodeIndex| pattern.borrow_mut().set_insert(into)
+                })
+                .register_fn("chain_space", {
+                    let pattern = pattern.clone();
+                    move |ctx: NativeCallContext, func: FnPtr| -> Result<petgraph::graph::NodeIndex, Box<EvalAltResult>> {
+                        { pattern.borrow_mut().start_ch_sp(); }
+                        func.call_within_context::<()>(&ctx, ())?;
+                        let ch_sp = { pattern.borrow_mut().end_ch_sp() };
+                        Ok(ch_sp)
+                    }
+                })
                 .on_var(|name, _index, ctx| {
                     let var = ctx.scope().get_value::<Dynamic>(name);
                     if let Some(var) = var {
