@@ -71,6 +71,7 @@ fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
 }
 
 pub fn sgd<C, N, E>(g: &petgraph::Graph<N, E>) -> Graph<C> where C: SDGCoords, E: Into<f32> + Clone {
+    // turn a crochet graph into pure vertices and edges
     let mut graph = g
         .filter_map(
             |_ix, _node| {
@@ -83,34 +84,33 @@ pub fn sgd<C, N, E>(g: &petgraph::Graph<N, E>) -> Graph<C> where C: SDGCoords, E
     let nodes = graph.node_indices().collect::<Vec<_>>();
     let mut terms = nodes
         .iter()
-        .take(nodes.len() - 1)
-        .flat_map(|node| {
+        .take(nodes.len() - 1) // ignore the last node because it'll be covered by all the others
+        .flat_map(|node| { // find the shortest path from each node to each other node
             dijkstra::dijkstra(&graph, *node, None, |e| *e.weight())
                 .into_iter()
                 .map(|(end, cost)| (node, end, cost))
                 .collect::<Vec<_>>()
         })
-        .filter(|(start, end, _)| *start < end)
-        .map(|(start, end, cost)| Term {
-            start: *start,
+        .filter(|(start, end, _)| *start < end) // and only count the unique paths
+        .map(|(&start, end, cost)| Term {
+            start,
             end,
             d: cost,
-            w: 1.0 / (cost * cost),
+            w: 1.0 / (cost * cost), // the weight w of a term is the inverse square cost.
         })
         .collect::<Vec<_>>();
 
-    terms.shuffle(&mut rand::thread_rng());
+    terms.shuffle(&mut rand::thread_rng()); // each iteration, randomize the list of terms
     let etas: Vec<f32> = schedule(&terms, 30);
     for eta in etas {
         for term in terms.iter_mut() {
-            let mu = f32::min(eta * term.w, 1.0);
+            let mu = f32::min(eta * term.w, 1.0); // limit the step size to at most 1.
             let p_i = graph[term.start];
             let p_j = graph[term.end];
 
             let d: C = p_i - p_j;
             let mag = d.length();
 
-            // distance constraint
             let r = (mu * (mag - term.d)) / (2.0 * mag);
             let rv = d * r;
 

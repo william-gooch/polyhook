@@ -1,26 +1,50 @@
 use petgraph::{graph::{self, EdgeReference}, visit::EdgeRef, Direction, Graph};
 
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Node {
-    Stitch { ty: &'static str },
+    Stitch { ty: &'static str, turn: bool },
     ChainSpace,
 }
 
 impl Node {
     fn chain() -> Self {
-        Self::Stitch { ty: "ch" }
+        Self::Stitch { ty: "ch", turn: false }
+    }
+
+    fn turn() -> Self {
+        Self::Stitch { ty: "ch", turn: true }
     }
 
     fn dc() -> Self {
-        Self::Stitch { ty: "dc" }
+        Self::Stitch { ty: "dc", turn: false }
     }
 
     fn decrease() -> Self {
-        Self::Stitch { ty: "dec" }
+        Self::Stitch { ty: "dec", turn: false }
     }
 
     fn ch_sp() -> Self {
         Self::ChainSpace
+    }
+
+    fn is_turn(&self) -> bool {
+        match self {
+            Node::Stitch { turn, .. } => *turn,
+            Node::ChainSpace => false,
+        }
+    }
+
+    fn stitch_type(&self) -> &'static str {
+        match self {
+            Node::Stitch { ty, .. } => ty,
+            Node::ChainSpace => "ch_sp",
+        }
+    }
+}
+
+impl Default for Node {
+    fn default() -> Self {
+        Node::chain()
     }
 }
 
@@ -76,6 +100,54 @@ impl Pattern {
         &self.graph
     }
 
+    pub fn triangulated_graph(&self) -> graph::DiGraph<(), f32> {
+        let new_graph = self.graph.clone();
+        
+        let diagonals = new_graph.edge_references()
+            .filter_map(|p| {
+                if *p.weight() == EdgeType::Insert && !new_graph.node_weight(p.target()).unwrap().is_turn() {
+                    if let Some(endpoint_1) = new_graph.edges_directed(p.source(), Direction::Incoming)
+                        .find(|e| *e.weight() == EdgeType::Previous)
+                        .map(|e| e.source()) {
+                        if let Some(endpoint_2) = new_graph.edges_directed(endpoint_1, Direction::Outgoing)
+                            .find(|e| *e.weight() == EdgeType::Insert)
+                            .map(|e| e.target()) {
+                            Some(vec![(endpoint_1, p.target(), 1.25), (endpoint_2, p.source(), 1.25)])
+                        } else {
+                            Some(vec![(endpoint_1, p.target(), 1.25)])
+                        }
+                    } else { None }
+                } else { None }
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        let mut new_graph = new_graph.filter_map(
+                |_ix, _node| {
+                    Some(())
+                },
+                |ix, edge| {
+                    let (start, end) = new_graph.edge_endpoints(ix).unwrap();
+                    let start = *new_graph.node_weight(start).unwrap();
+                    let end = *new_graph.node_weight(end).unwrap();
+                    Some(match edge {
+                        EdgeType::Previous => {
+                            if start.stitch_type() == "ch" && end == Node::dc() {
+                                1.0
+                            } else { 0.75 }
+                        }
+                        EdgeType::Insert => 1.0,
+                        EdgeType::Slip => 0.000001,
+                        EdgeType::Neighbour => 1.0,
+                    })
+                },
+            );
+
+        new_graph.extend_with_edges(diagonals);
+
+        new_graph
+    }
+
     pub fn prev(&self) -> graph::NodeIndex {
         self.prev
     }
@@ -110,8 +182,8 @@ impl Pattern {
 
         let node_attr_getter = |_g, (id, &ref n)| {
             let options = match n {
-                Node::Stitch { ty: "ch" } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
-                Node::Stitch { ty: "dc" } => {
+                Node::Stitch { ty: "ch", .. } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
+                Node::Stitch { ty: "dc", .. } => {
                     "shape = \"none\" label = \"+\" margin = \"0\" fontsize = 56.0"
                 }
                 _ => "shape = \"point\" label = \"\"",
@@ -148,16 +220,17 @@ impl Pattern {
     }
 
     pub fn turn(&mut self) {
-        self.insert = Some(self.prev);
-        self.direction = SkipDirection::Reverse;
-        self.chain();
+        self.turn_noskip();
         self.skip();
     }
 
     pub fn turn_noskip(&mut self) {
         self.insert = Some(self.prev);
         self.direction = SkipDirection::Reverse;
-        self.chain();
+        let new_node = self.graph.add_node(Node::turn());
+        self.graph
+            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.prev = new_node;
     }
 
     pub fn skip(&mut self) {
