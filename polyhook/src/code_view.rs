@@ -1,9 +1,12 @@
+use std::thread::{spawn, JoinHandle};
+
 use egui_extras::syntax_highlighting::{highlight, CodeTheme};
 
 use crate::model::{pattern_model::model_from_pattern, ModelData};
 
 pub struct CodeView {
     code: String,
+    thread: Option<JoinHandle<Option<ModelData>>>,
 }
 
 impl Default for CodeView {
@@ -17,6 +20,7 @@ impl Default for CodeView {
 }
             "#
             .into(),
+            thread: None,
         }
     }
 }
@@ -35,7 +39,7 @@ impl CodeView {
             ui.fonts(|f| f.layout_job(layout_job))
         };
 
-        let model = egui::Frame::default()
+        egui::Frame::default()
             .fill(ui.visuals().extreme_bg_color)
             .stroke(ui.visuals().window_stroke)
             .rounding(ui.visuals().window_rounding)
@@ -54,21 +58,31 @@ impl CodeView {
                         );
                     });
 
-                let button = ui.add_sized(ui.available_size(), egui::Button::new("Render"));
-                if button.clicked() {
-                    let pattern = hooklib::script::PatternScript::eval_script(&self.code);
-                    match pattern {
-                        Ok(pattern) => Some(model_from_pattern(&pattern)),
-                        Err(err) => {
-                            eprintln!("{:?}", err);
-                            None
-                        }
+                ui.add_enabled_ui(self.thread.as_ref().is_none_or(|t| t.is_finished()), |ui| {
+                    let button = ui.add_sized(ui.available_size(), egui::Button::new("Render"));
+                    if button.clicked() {
+                        let code = self.code.clone();
+                        self.thread = Some(spawn(move || {
+                            let pattern = hooklib::script::PatternScript::eval_script(&code);
+                            match pattern {
+                                Ok(pattern) => Some(model_from_pattern(&pattern)),
+                                Err(err) => {
+                                    eprintln!("{:?}", err);
+                                    None
+                                }
+                            }
+                        }));
                     }
-                } else {
-                    None
-                }
+                });
             });
 
-        model.inner
+        if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
+            let model = self.thread.take().unwrap().join()
+                .expect("Failed to join thread.")
+                .expect("Error in creating model.");
+            Some(model)
+        } else {
+            None
+        }
     }
 }

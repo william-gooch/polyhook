@@ -31,10 +31,17 @@ impl PatternScript {
             #[allow(deprecated)]
             engine
                 .register_custom_operator("#", 160).unwrap()
+                .register_custom_operator("@", 160).unwrap()
                 .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark")
                 .register_fn("#", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
                     for _ in 1..=times {
                         func.call_within_context::<()>(&ctx, ())?;
+                    }
+                    Ok(())
+                })
+                .register_fn("@", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
+                    for i in 1..=times {
+                        func.call_within_context::<()>(&ctx, (i,))?;
                     }
                     Ok(())
                 })
