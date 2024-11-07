@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use eframe::egui_wgpu::wgpu;
+use glam::Vec3;
 
 use crate::shader::Shader;
 
@@ -28,6 +29,12 @@ impl Vertex {
                 shader_location: 0,
             }],
         }
+    }
+}
+
+impl From<Vec3> for Vertex {
+    fn from(pos: Vec3) -> Self {
+        Self::new([pos.x, pos.y, pos.z, 1.0])
     }
 }
 
