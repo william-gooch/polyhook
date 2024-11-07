@@ -1,6 +1,7 @@
 use std::thread::{spawn, JoinHandle};
 
 use egui_extras::syntax_highlighting::{highlight, CodeTheme};
+use hooklib::examples;
 
 use crate::model::{pattern_model::model_from_pattern, ModelData};
 
@@ -12,20 +13,46 @@ pub struct CodeView {
 impl Default for CodeView {
     fn default() -> Self {
         Self {
-            code: r#"
-15 # chain;
-15 # || {
-    turn();
-    15 # dc;
-}
-            "#
-            .into(),
+            code: examples::EXAMPLE_SPIRAL_ROUNDS.into(),
             thread: None,
         }
     }
 }
 
 impl CodeView {
+    pub fn load_code(&mut self, code: &str) {
+        self.code = code.into();
+    }
+
+    fn start_render(&mut self) {
+        let code = self.code.clone();
+        self.thread = Some(spawn(move || {
+            let pattern = hooklib::script::PatternScript::eval_script(&code);
+            match pattern {
+                Ok(pattern) => Some(model_from_pattern(&pattern)),
+                Err(err) => {
+                    eprintln!("{:?}", err);
+                    None
+                }
+            }
+        }));
+    }
+
+    fn check_render(&mut self) -> Option<ModelData> {
+        if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
+            let model = self
+                .thread
+                .take()
+                .unwrap()
+                .join()
+                .expect("Failed to join thread.")
+                .expect("Error in creating model.");
+            Some(model)
+        } else {
+            None
+        }
+    }
+
     pub fn code_view_show(&mut self, ui: &mut egui::Ui) -> Option<ModelData> {
         let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
             let mut layout_job = highlight(
@@ -61,28 +88,11 @@ impl CodeView {
                 ui.add_enabled_ui(self.thread.as_ref().is_none_or(|t| t.is_finished()), |ui| {
                     let button = ui.add_sized(ui.available_size(), egui::Button::new("Render"));
                     if button.clicked() {
-                        let code = self.code.clone();
-                        self.thread = Some(spawn(move || {
-                            let pattern = hooklib::script::PatternScript::eval_script(&code);
-                            match pattern {
-                                Ok(pattern) => Some(model_from_pattern(&pattern)),
-                                Err(err) => {
-                                    eprintln!("{:?}", err);
-                                    None
-                                }
-                            }
-                        }));
+                        self.start_render();
                     }
                 });
             });
 
-        if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
-            let model = self.thread.take().unwrap().join()
-                .expect("Failed to join thread.")
-                .expect("Error in creating model.");
-            Some(model)
-        } else {
-            None
-        }
+        self.check_render()
     }
 }

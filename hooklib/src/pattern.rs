@@ -1,4 +1,8 @@
-use petgraph::{graph::{self, EdgeReference}, visit::EdgeRef, Direction, Graph};
+use petgraph::{
+    graph::{self},
+    visit::EdgeRef,
+    Direction, Graph,
+};
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Node {
@@ -8,19 +12,31 @@ pub enum Node {
 
 impl Node {
     fn chain() -> Self {
-        Self::Stitch { ty: "ch", turn: false }
+        Self::Stitch {
+            ty: "ch",
+            turn: false,
+        }
     }
 
     fn turn() -> Self {
-        Self::Stitch { ty: "ch", turn: true }
+        Self::Stitch {
+            ty: "ch",
+            turn: true,
+        }
     }
 
     fn dc() -> Self {
-        Self::Stitch { ty: "dc", turn: false }
+        Self::Stitch {
+            ty: "dc",
+            turn: false,
+        }
     }
 
     fn decrease() -> Self {
-        Self::Stitch { ty: "dec", turn: false }
+        Self::Stitch {
+            ty: "dec",
+            turn: false,
+        }
     }
 
     fn ch_sp() -> Self {
@@ -102,46 +118,60 @@ impl Pattern {
 
     pub fn triangulated_graph(&self) -> graph::DiGraph<(), f32> {
         let new_graph = self.graph.clone();
-        
-        let diagonals = new_graph.edge_references()
+
+        let diagonals = new_graph
+            .edge_references()
             .filter_map(|p| {
-                if *p.weight() == EdgeType::Insert && !new_graph.node_weight(p.target()).unwrap().is_turn() {
-                    if let Some(endpoint_1) = new_graph.edges_directed(p.source(), Direction::Incoming)
+                if *p.weight() == EdgeType::Insert
+                    && !new_graph.node_weight(p.target()).unwrap().is_turn()
+                {
+                    if let Some(endpoint_1) = new_graph
+                        .edges_directed(p.source(), Direction::Incoming)
                         .find(|e| *e.weight() == EdgeType::Previous)
-                        .map(|e| e.source()) {
-                        if let Some(endpoint_2) = new_graph.edges_directed(endpoint_1, Direction::Outgoing)
+                        .map(|e| e.source())
+                    {
+                        if let Some(endpoint_2) = new_graph
+                            .edges_directed(endpoint_1, Direction::Outgoing)
                             .find(|e| *e.weight() == EdgeType::Insert)
-                            .map(|e| e.target()) {
-                            Some(vec![(endpoint_1, p.target(), 1.25), (endpoint_2, p.source(), 1.25)])
+                            .map(|e| e.target())
+                        {
+                            Some(vec![
+                                (endpoint_1, p.target(), 1.25),
+                                (endpoint_2, p.source(), 1.25),
+                            ])
                         } else {
                             Some(vec![(endpoint_1, p.target(), 1.25)])
                         }
-                    } else { None }
-                } else { None }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             })
             .flatten()
             .collect::<Vec<_>>();
 
         let mut new_graph = new_graph.filter_map(
-                |_ix, _node| {
-                    Some(())
-                },
-                |ix, edge| {
-                    let (start, end) = new_graph.edge_endpoints(ix).unwrap();
-                    let start = *new_graph.node_weight(start).unwrap();
-                    let end = *new_graph.node_weight(end).unwrap();
-                    Some(match edge {
-                        EdgeType::Previous => {
-                            if start.stitch_type() == "ch" && end == Node::dc() {
-                                1.0
-                            } else { 0.75 }
+            |_ix, _node| Some(()),
+            |ix, edge| {
+                let (start, end) = new_graph.edge_endpoints(ix).unwrap();
+                let start = *new_graph.node_weight(start).unwrap();
+                let end = *new_graph.node_weight(end).unwrap();
+                Some(match edge {
+                    EdgeType::Previous => {
+                        if start.stitch_type() == "ch" && end == Node::dc() {
+                            1.0
+                        } else {
+                            0.75
                         }
-                        EdgeType::Insert => 1.0,
-                        EdgeType::Slip => 0.000001,
-                        EdgeType::Neighbour => 1.0,
-                    })
-                },
-            );
+                    }
+                    EdgeType::Insert => 1.0,
+                    EdgeType::Slip => 0.000001,
+                    EdgeType::Neighbour => 1.0,
+                })
+            },
+        );
 
         new_graph.extend_with_edges(diagonals);
 
@@ -188,11 +218,7 @@ impl Pattern {
                 }
                 _ => "shape = \"point\" label = \"\"",
             };
-            let style = if id == self.start {
-                "filled"
-            } else {
-                ""
-            };
+            let style = if id == self.start { "filled" } else { "" };
 
             format!("{options} style=\"{style}\"")
         };
@@ -228,8 +254,7 @@ impl Pattern {
         self.insert = Some(self.prev);
         self.direction = SkipDirection::Reverse;
         let new_node = self.graph.add_node(Node::turn());
-        self.graph
-            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
         self.prev = new_node;
     }
 
@@ -251,8 +276,7 @@ impl Pattern {
 
     pub fn chain(&mut self) {
         let new_node = self.graph.add_node(Node::chain());
-        self.graph
-            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
         self.prev = new_node;
 
         if let Some(ch_sp) = self.current_ch_sp.as_mut() {
@@ -262,8 +286,7 @@ impl Pattern {
 
     pub fn dc(&mut self) {
         let new_node = self.graph.add_node(Node::dc());
-        self.graph
-            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
@@ -273,8 +296,7 @@ impl Pattern {
 
     pub fn dc_noskip(&mut self) {
         let new_node = self.graph.add_node(Node::dc());
-        self.graph
-            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
 
@@ -283,8 +305,7 @@ impl Pattern {
 
     pub fn dec(&mut self) {
         let new_node = self.graph.add_node(Node::decrease());
-        self.graph
-            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
@@ -301,8 +322,7 @@ impl Pattern {
     }
 
     pub fn slip_stitch(&mut self, into: graph::NodeIndex) {
-        self.graph
-            .add_edge(self.prev, into, EdgeType::Slip);
+        self.graph.add_edge(self.prev, into, EdgeType::Slip);
     }
 
     pub fn start_ch_sp(&mut self) {
@@ -449,15 +469,15 @@ pub fn test_pattern_joined_rounds() -> Pattern {
     pattern
 }
 
-pub fn test_pattern_flat() -> Pattern {
+pub fn test_pattern_flat(n: u32) -> Pattern {
     let mut pattern = Pattern::new();
-    for _ in 1..=15 {
+    for _ in 1..=n {
         pattern.chain();
     }
 
-    for _ in 1..=15 {
+    for _ in 1..=n {
         pattern.turn();
-        for _ in 1..=15 {
+        for _ in 1..=n {
             pattern.dc();
         }
     }
@@ -474,7 +494,7 @@ mod tests {
 
     #[test]
     fn test_flat() {
-        let pattern = test_pattern_flat();
+        let pattern = test_pattern_flat(15);
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/flat.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();

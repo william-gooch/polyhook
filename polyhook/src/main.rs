@@ -6,6 +6,7 @@ mod transform;
 mod code_view;
 
 use egui::Vec2;
+use hooklib::examples;
 use std::sync::Arc;
 
 struct App {
@@ -45,6 +46,17 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("Examples", |ui| {
+                    for &(name, code) in examples::EXAMPLES {
+                        if ui.button(name).clicked() {
+                            self.code_view.load_code(code);
+                            ui.close_menu();
+                        }
+                    }
+                })
+            });
+
             egui::SidePanel::left("left_panel")
                 .resizable(true)
                 .default_width(ui.available_width() * 0.5)

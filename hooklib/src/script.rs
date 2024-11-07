@@ -1,4 +1,6 @@
-use rhai::{Dynamic, Engine, EvalAltResult, FnPtr, Locked, NativeCallContext, RhaiNativeFunc, Shared};
+use rhai::{
+    Dynamic, Engine, EvalAltResult, FnPtr, Locked, NativeCallContext, RhaiNativeFunc, Shared,
+};
 
 use crate::pattern::Pattern;
 
@@ -46,9 +48,10 @@ impl PatternScript {
                     Ok(())
                 })
                 .register_fn("turn", callback(pattern.clone(), Pattern::turn))
-                .register_fn("chain", callback(pattern.clone(), Pattern::chain))
+                .register_fn("turn_", callback(pattern.clone(), Pattern::turn_noskip))                .register_fn("chain", callback(pattern.clone(), Pattern::chain))
                 .register_fn("dc", callback(pattern.clone(), Pattern::dc))
                 .register_fn("dc_", callback(pattern.clone(), Pattern::dc_noskip))
+                .register_fn("dec", callback(pattern.clone(), Pattern::dec))
                 .register_fn("mark", {
                     let pattern = pattern.clone();
                     move || pattern.borrow().prev()
@@ -106,6 +109,6 @@ mod tests {
         )
         .expect("Error in evaluating script");
 
-        assert_eq!(pattern, crate::pattern::test_pattern_flat());
+        assert_eq!(pattern, crate::pattern::test_pattern_flat(15));
     }
 }
