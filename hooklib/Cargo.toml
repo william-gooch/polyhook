@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 petgraph = { workspace = true }
-rhai = { workspace = true }
+rhai = { workspace = true, features = ["sync"] }
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }

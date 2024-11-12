@@ -51,6 +51,7 @@ struct Term {
 type Graph<C> = petgraph::Graph<C, f32, Undirected>;
 
 const EPSILON: f32 = 0.01;
+const SGD_ITERS: u32 = 10;
 
 fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
     let w_min = terms
@@ -110,7 +111,7 @@ where
         .collect::<Vec<_>>();
 
     terms.shuffle(&mut rng); // each iteration, randomize the list of terms
-    let etas: Vec<f32> = schedule(&terms, 30);
+    let etas: Vec<f32> = schedule(&terms, SGD_ITERS);
     for eta in etas {
         for term in terms.iter_mut() {
             let mu = f32::min(eta * term.w, 1.0); // limit the step size to at most 1.
@@ -131,6 +132,42 @@ where
     }
 
     graph
+}
+
+const FDG_ITERS: u32 = 10;
+const STEP_SIZE: f32 = 0.1;
+const ATTRACTIVE_FORCE: f32 = 2.0;
+const REPULSIVE_FORCE: f32 = 0.0;
+
+pub fn fdg(g: &mut Graph<Vec3>) {
+    for _ in 1..=FDG_ITERS {
+        let new_pos = g.node_references()
+            .map(|(n1, p1)| {
+                let force: Vec3 = g.node_references()
+                    .filter_map(|(n2, p2)| {
+                        if n2 == n1 { None }
+                        else {
+                            let d = p2 - p1;
+                            let f = if let Some(e) = g.edges_connecting(n1, n2).next() {
+                                ATTRACTIVE_FORCE * f32::log10(d.length() / e.weight())
+                            } else {
+                                -REPULSIVE_FORCE / d.length_squared()
+                            };
+                            Some(f * d.normalize())
+                        }
+                    })
+                    .sum();
+                    
+                (n1, g.node_weight(n1).unwrap() + (STEP_SIZE * force))
+            })
+            .collect::<Vec<_>>();
+
+        new_pos.into_iter()
+            .for_each(|(n, p)| {
+                let w = g.node_weight_mut(n).unwrap();
+                *w = p;
+            });
+    }
 }
 
 pub fn normalize(g: &mut Graph<Vec3>) {
@@ -162,7 +199,7 @@ pub fn normalize(g: &mut Graph<Vec3>) {
         .cross(neighbours.2 - neighbours.0)
         .normalize();
     let transform = Mat4::from_quat(Quat::from_rotation_arc_colinear(normal, Vec3::Y))
-        * Mat4::from_translation(-central_pos);
+        * Mat4::from_translation(-avg_position);
 
     g.node_weights_mut()
         .for_each(|p| *p = (transform * (p.extend(1.0))).xyz());

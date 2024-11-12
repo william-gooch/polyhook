@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use rhai::{
     Dynamic, Engine, EvalAltResult, FnPtr, Locked, NativeCallContext, RhaiNativeFunc, Shared,
 };
@@ -14,7 +16,7 @@ pub enum PatternInstructions {
 }
 
 impl PatternScript {
-    pub fn eval_script(script: &str) -> Result<Pattern, Box<dyn std::error::Error>> {
+    pub fn eval_script(script: &str) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
         let pattern = Shared::new(Locked::new(Pattern::new()));
 
         {
@@ -25,9 +27,9 @@ impl PatternScript {
                 func: F,
             ) -> impl RhaiNativeFunc<(), 0, false, (), false>
             where
-                F: Fn(&mut Pattern) -> () + 'static,
+                F: Fn(&mut Pattern) -> () + 'static + Send + Sync,
             {
-                move || func(&mut *pattern.borrow_mut())
+                move || func(&mut *pattern.write().unwrap())
             }
 
             #[allow(deprecated)]
@@ -48,28 +50,29 @@ impl PatternScript {
                     Ok(())
                 })
                 .register_fn("turn", callback(pattern.clone(), Pattern::turn))
-                .register_fn("turn_", callback(pattern.clone(), Pattern::turn_noskip))                .register_fn("chain", callback(pattern.clone(), Pattern::chain))
+                .register_fn("turn_", callback(pattern.clone(), Pattern::turn_noskip))
+                .register_fn("chain", callback(pattern.clone(), Pattern::chain))
                 .register_fn("dc", callback(pattern.clone(), Pattern::dc))
                 .register_fn("dc_", callback(pattern.clone(), Pattern::dc_noskip))
                 .register_fn("dec", callback(pattern.clone(), Pattern::dec))
                 .register_fn("mark", {
                     let pattern = pattern.clone();
-                    move || pattern.borrow().prev()
+                    move || pattern.read().unwrap().prev()
                 })
                 .register_fn("ss", {
                     let pattern = pattern.clone();
-                    move |into: petgraph::graph::NodeIndex| pattern.borrow_mut().slip_stitch(into)
+                    move |into: petgraph::graph::NodeIndex| pattern.write().unwrap().slip_stitch(into)
                 })
                 .register_fn("into", {
                     let pattern = pattern.clone();
-                    move |into: petgraph::graph::NodeIndex| pattern.borrow_mut().set_insert(into)
+                    move |into: petgraph::graph::NodeIndex| pattern.write().unwrap().set_insert(into)
                 })
                 .register_fn("chain_space", {
                     let pattern = pattern.clone();
                     move |ctx: NativeCallContext, func: FnPtr| -> Result<petgraph::graph::NodeIndex, Box<EvalAltResult>> {
-                        { pattern.borrow_mut().start_ch_sp(); }
+                        { pattern.write().unwrap().start_ch_sp(); }
                         func.call_within_context::<()>(&ctx, ())?;
-                        let ch_sp = { pattern.borrow_mut().end_ch_sp() };
+                        let ch_sp = { pattern.write().unwrap().end_ch_sp() };
                         Ok(ch_sp)
                     }
                 })
@@ -88,7 +91,8 @@ impl PatternScript {
 
         Ok(Shared::try_unwrap(pattern)
             .expect("pattern variable still in use?")
-            .into_inner())
+            .into_inner()
+            .expect("couldn't get lock on RwLock"))
     }
 }
 

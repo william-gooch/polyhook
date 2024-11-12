@@ -79,11 +79,14 @@ enum SkipDirection {
     Reverse,
 }
 
+/// Gauge is the ratio of stitches in a given length to rows in a given length.
+const GAUGE: f32 = 15.0 / 18.5;
+
 impl Into<f32> for EdgeType {
     fn into(self) -> f32 {
         match self {
             EdgeType::Previous => 1.0,
-            EdgeType::Insert => 0.75,
+            EdgeType::Insert => 1.0 / GAUGE,
             EdgeType::Slip => 0.000001,
             EdgeType::Neighbour => 1.0,
         }

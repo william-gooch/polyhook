@@ -62,7 +62,7 @@ ss(start);
     6 # || {
         inc();
         round # dc;
-    }
+    };
     ss(start);
 }
 "#;
