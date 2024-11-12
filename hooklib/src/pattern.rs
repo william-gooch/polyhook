@@ -114,6 +114,7 @@ impl PartialEq for Pattern {
     }
 }
 
+
 impl Pattern {
     pub fn graph(&self) -> &graph::DiGraph<Node, EdgeType> {
         &self.graph
@@ -121,6 +122,7 @@ impl Pattern {
 
     pub fn triangulated_graph(&self) -> graph::DiGraph<(), f32> {
         let new_graph = self.graph.clone();
+        let diag_length = (1.0 + ((1.0 / GAUGE) * (1.0 / GAUGE))).sqrt();
 
         let diagonals = new_graph
             .edge_references()
@@ -139,11 +141,11 @@ impl Pattern {
                             .map(|e| e.target())
                         {
                             Some(vec![
-                                (endpoint_1, p.target(), 1.25),
-                                (endpoint_2, p.source(), 1.25),
+                                (endpoint_1, p.target(), diag_length),
+                                (endpoint_2, p.source(), diag_length),
                             ])
                         } else {
-                            Some(vec![(endpoint_1, p.target(), 1.25)])
+                            Some(vec![(endpoint_1, p.target(), diag_length)])
                         }
                     } else {
                         None

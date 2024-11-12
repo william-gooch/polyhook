@@ -78,8 +78,8 @@ impl PatternScript {
                 })
                 .on_var(|name, _index, ctx| {
                     let var = ctx.scope().get_value::<Dynamic>(name);
-                    if let Some(var) = var {
-                        Ok(Some(var))
+                    if let Some(_) = var {
+                        Ok(None)
                     } else {
                         let func = FnPtr::new(name)?;
                         Ok(Some(func.into()))

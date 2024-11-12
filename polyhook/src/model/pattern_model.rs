@@ -7,7 +7,7 @@ use sgd::sgd;
 use super::Vertex;
 
 pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
-    let mut graph = sgd::<Vec3, _, _>(&pattern.graph());
+    let mut graph = sgd::<Vec3, _, _>(&pattern.triangulated_graph());
     sgd::fdg(&mut graph);
     sgd::normalize(&mut graph);
 

@@ -3,6 +3,7 @@ pub const EXAMPLES: &[(&str, &str)] = &[
     ("Spiral Rounds", EXAMPLE_SPIRAL_ROUNDS),
     ("Joined Rounds", EXAMPLE_JOINED_ROUNDS),
     ("Sphere", EXAMPLE_SPHERE),
+    ("Dynamic Circle", EXAMPLE_DYNAMIC_CIRCLE),
 ];
 
 pub const EXAMPLE_FLAT: &str = r#"15 # chain;
@@ -105,3 +106,5 @@ into(start);
 
 2 # dec;
 "#;
+
+pub const EXAMPLE_DYNAMIC_CIRCLE: &str = include_str!("../examples/dynamic_circle.ph");
