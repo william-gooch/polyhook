@@ -10,7 +10,7 @@ impl Orbit {
     pub fn update(&mut self, del: glam::Vec3) {
         self.theta -= del.x * 0.01;
         self.phi -= del.y * 0.01;
-        self.d -= del.z * 0.01;
+        self.d -= del.z * 0.005 * self.d;
     }
 
     pub fn matrix(&self) -> glam::Mat4 {
