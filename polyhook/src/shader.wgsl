@@ -18,7 +18,7 @@ var<private> v_color: vec4f = vec4f(1.0, 0.0, 0.0, 1.0);
 fn vs_main(@location(0) v_position: vec4f) -> VertexOut {
     var out: VertexOut;
 
-    out.position = mvp.projection * mvp.view * mvp.model * out.world_position;
+    out.position = mvp.projection * mvp.view * mvp.model * v_position;
     out.color = v_color;
 
     return out;
