@@ -53,7 +53,7 @@ type Graph<C> = petgraph::Graph<C, f32, Undirected>;
 const EPSILON: f32 = 0.01;
 const SGD_ITERS: u32 = 10;
 
-fn schedule(terms: &Vec<Term>, t_max: u32) -> Vec<f32> {
+fn schedule(terms: &[Term], t_max: u32) -> Vec<f32> {
     let w_min = terms
         .iter()
         .min_by(|a, b| a.w.partial_cmp(&b.w).expect("tried to compare NaN"))

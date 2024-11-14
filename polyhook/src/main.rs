@@ -60,8 +60,8 @@ impl eframe::App for App {
             egui::SidePanel::left("left_panel")
                 .resizable(true)
                 .default_width(ui.available_width() * 0.5)
-                .show_inside(ui, |mut ui| {
-                    let new_model = self.code_view.code_view_show(&mut ui);
+                .show_inside(ui, |ui| {
+                    let new_model = self.code_view.code_view_show(ui);
                     if let Some(new_model) = new_model {
                         // TODO: switch the model to the new one
                         self.renderer.set_model(new_model);

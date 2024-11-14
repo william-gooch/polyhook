@@ -82,9 +82,9 @@ enum SkipDirection {
 /// Gauge is the ratio of stitches in a given length to rows in a given length.
 const GAUGE: f32 = 15.0 / 18.5;
 
-impl Into<f32> for EdgeType {
-    fn into(self) -> f32 {
-        match self {
+impl From<EdgeType> for f32 {
+    fn from(edge_type: EdgeType) -> Self {
+        match edge_type {
             EdgeType::Previous => 1.0,
             EdgeType::Insert => 1.0 / GAUGE,
             EdgeType::Slip => 0.000001,
@@ -113,7 +113,6 @@ impl PartialEq for Pattern {
         )
     }
 }
-
 
 impl Pattern {
     pub fn graph(&self) -> &graph::DiGraph<Node, EdgeType> {
@@ -200,22 +199,20 @@ impl Pattern {
         let start = graph.add_node(Node::chain());
         let prev = start;
 
-        let new_pattern = Self {
+        Self {
             graph,
             start,
             prev,
             insert: None,
             current_ch_sp: None,
             direction: Default::default(),
-        };
-
-        new_pattern
+        }
     }
 
     pub fn to_graphviz(&self) -> String {
         use petgraph::dot::{Config, Dot};
 
-        let node_attr_getter = |_g, (id, &ref n)| {
+        let node_attr_getter = |_g, (id, n): (graph::NodeIndex, &Node)| {
             let options = match n {
                 Node::Stitch { ty: "ch", .. } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
                 Node::Stitch { ty: "dc", .. } => {
@@ -351,6 +348,12 @@ impl Pattern {
         });
 
         new_node
+    }
+}
+
+impl Default for Pattern {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

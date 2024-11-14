@@ -1,4 +1,4 @@
-use bytemuck::{AnyBitPattern, NoUninit, Pod, Zeroable};
+use bytemuck::{Pod, Zeroable};
 
 pub struct Orbit {
     pub phi: f32,
@@ -22,15 +22,14 @@ impl Orbit {
 
 #[repr(C)]
 #[derive(Pod, Clone, Copy, Zeroable)]
-pub struct MVP {
+pub struct Mvp {
     pub model: glam::Mat4,
     pub view: glam::Mat4,
     pub projection: glam::Mat4,
 }
 
-impl MVP {
+impl Mvp {
     const Z_NEAR: f32 = 0.01;
-    const Z_FAR: f32 = 100.0;
 
     pub fn new() -> Self {
         Self {
@@ -39,22 +38,16 @@ impl MVP {
             projection: glam::Mat4::perspective_infinite_lh(
                 std::f32::consts::PI / 4.0,
                 1.0,
-                MVP::Z_NEAR,
-                // MVP::Z_FAR,
+                Mvp::Z_NEAR,
             ),
         }
-    }
-
-    pub fn matrix(&self) -> glam::Mat4 {
-        self.projection * self.view * self.model
     }
 
     pub fn update_projection(&mut self, aspect_ratio: f32) {
         self.projection = glam::Mat4::perspective_infinite_lh(
             std::f32::consts::PI / 4.0,
             aspect_ratio,
-            MVP::Z_NEAR,
-            // MVP::Z_FAR,
+            Mvp::Z_NEAR,
         );
     }
 }

@@ -1,56 +1,13 @@
 use crate::model::pattern_model::model_from_pattern;
 use crate::model::{Model, ModelData, Vertex};
 use crate::shader::Shader;
-use crate::transform::MVP;
+use crate::transform::Mvp;
 
 use eframe::egui_wgpu;
 use eframe::egui_wgpu::wgpu;
 
-struct DepthTexture {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
-}
-
-impl DepthTexture {
-    pub fn create_depth_texture(device: &wgpu::Device, width: u32, height: u32) -> Self {
-        let size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("polyhook"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            compare: Some(wgpu::CompareFunction::LessEqual),
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 100.0,
-            ..Default::default()
-        });
-
-        Self { texture, view, sampler }
-    }
-}
-
 pub struct Renderer {
-    pub mvp: MVP,
+    pub mvp: Mvp,
     render_state: egui_wgpu::RenderState,
     shader: Shader,
 }
@@ -59,7 +16,7 @@ impl Renderer {
     pub fn new(wgpu_render_state: &egui_wgpu::RenderState) -> Option<Self> {
         let device = &wgpu_render_state.device;
 
-        let shader = Shader::new_shader(&device);
+        let shader = Shader::new_shader(device);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("polyhook"),
@@ -94,7 +51,7 @@ impl Renderer {
         });
 
         let pattern = hooklib::pattern::test_pattern_sphere();
-        let model = Model::new(model_from_pattern(&pattern), &device, &shader);
+        let model = Model::new(model_from_pattern(&pattern), device, &shader);
         
         wgpu_render_state
             .renderer
@@ -103,7 +60,7 @@ impl Renderer {
             .insert(RendererResources { pipeline, model });
 
         Some(Self {
-            mvp: MVP::new(),
+            mvp: Mvp::new(),
             render_state: wgpu_render_state.clone(),
             shader,
         })
@@ -122,7 +79,7 @@ impl Renderer {
     }
 }
 
-pub struct RendererCallback(pub MVP);
+pub struct RendererCallback(pub Mvp);
 
 impl egui_wgpu::CallbackTrait for RendererCallback {
     fn prepare(

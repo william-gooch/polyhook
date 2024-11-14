@@ -27,9 +27,9 @@ impl PatternScript {
                 func: F,
             ) -> impl RhaiNativeFunc<(), 0, false, (), false>
             where
-                F: Fn(&mut Pattern) -> () + 'static + Send + Sync,
+                F: Fn(&mut Pattern) + 'static + Send + Sync,
             {
-                move || func(&mut *pattern.write().unwrap())
+                move || func(&mut pattern.write().unwrap())
             }
 
             #[allow(deprecated)]
@@ -78,7 +78,7 @@ impl PatternScript {
                 })
                 .on_var(|name, _index, ctx| {
                     let var = ctx.scope().get_value::<Dynamic>(name);
-                    if let Some(_) = var {
+                    if var.is_some() {
                         Ok(None)
                     } else {
                         let func = FnPtr::new(name)?;
@@ -86,7 +86,7 @@ impl PatternScript {
                     }
                 });
 
-            let _ = engine.run(script)?;
+            engine.run(script)?
         }
 
         Ok(Shared::try_unwrap(pattern)
