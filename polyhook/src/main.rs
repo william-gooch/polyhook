@@ -4,13 +4,16 @@ mod shader;
 mod transform;
 
 mod code_view;
+mod parametric_view;
 
 use egui::Vec2;
 use hooklib::examples;
+use parametric_view::ParametricView;
 use std::sync::Arc;
 
 struct App {
     code_view: code_view::CodeView,
+    parametric_view: ParametricView,
     renderer: render::Renderer,
     orbit: transform::Orbit,
 }
@@ -33,6 +36,7 @@ impl App {
 
         Self {
             code_view: Default::default(),
+            parametric_view: Default::default(),
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
             orbit: transform::Orbit {
                 phi: 0.0,
@@ -66,6 +70,13 @@ impl eframe::App for App {
                         // TODO: switch the model to the new one
                         self.renderer.set_model(new_model);
                     }
+                });
+
+            egui::SidePanel::right("right_panel")
+                .resizable(true)
+                .default_width(ui.available_width() * 0.5)
+                .show_inside(ui, |ui| {
+                    ui.add(&mut self.parametric_view)
                 });
 
             egui::CentralPanel::default().show_inside(ui, |ui| {

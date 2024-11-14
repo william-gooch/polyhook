@@ -8,13 +8,6 @@ use crate::pattern::Pattern;
 
 pub struct PatternScript;
 
-pub enum PatternInstructions {
-    Chain,
-    Dc,
-    Seq(Box<PatternInstructions>, Box<PatternInstructions>),
-    Repeat(u32, Box<PatternInstructions>),
-}
-
 impl PatternScript {
     pub fn eval_script(script: &str) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
         let pattern = Shared::new(Locked::new(Pattern::new()));
