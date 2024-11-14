@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 use eframe::egui_wgpu::wgpu;
 use glam::Vec3;
 
-use crate::shader::Shader;
+use crate::{shader::Shader, transform::MVP};
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -81,7 +81,7 @@ impl Model {
 
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("polyhook_uni"),
-            contents: bytemuck::cast_slice(glam::Mat4::IDENTITY.as_ref()),
+            contents: bytemuck::cast_slice(&[MVP::new()]),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
         });
 
@@ -112,11 +112,11 @@ impl Model {
         render_pass.draw_indexed(0..(self.data.num_indices() as u32), 0, 0..1);
     }
 
-    pub fn write_uniform(&self, queue: &wgpu::Queue, value: &glam::Mat4) {
+    pub fn write_mvp(&self, queue: &wgpu::Queue, value: &MVP) {
         queue.write_buffer(
             &self.buffers.uniform,
             0,
-            bytemuck::cast_slice(value.as_ref()),
+            bytemuck::cast_slice(&[*value]),
         );
     }
 }

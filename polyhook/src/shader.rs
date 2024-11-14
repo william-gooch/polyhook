@@ -25,7 +25,7 @@ impl Shader {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(64),
+                        min_binding_size: std::num::NonZeroU64::new(192),
                     },
                     count: None,
                 }],

@@ -6,6 +6,49 @@ use crate::transform::MVP;
 use eframe::egui_wgpu;
 use eframe::egui_wgpu::wgpu;
 
+struct DepthTexture {
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    sampler: wgpu::Sampler,
+}
+
+impl DepthTexture {
+    pub fn create_depth_texture(device: &wgpu::Device, width: u32, height: u32) -> Self {
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("polyhook"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 100.0,
+            ..Default::default()
+        });
+
+        Self { texture, view, sampler }
+    }
+}
+
 pub struct Renderer {
     pub mvp: MVP,
     render_state: egui_wgpu::RenderState,
@@ -52,7 +95,7 @@ impl Renderer {
 
         let pattern = hooklib::pattern::test_pattern_sphere();
         let model = Model::new(model_from_pattern(&pattern), &device, &shader);
-
+        
         wgpu_render_state
             .renderer
             .write()
@@ -79,7 +122,7 @@ impl Renderer {
     }
 }
 
-pub struct RendererCallback(pub glam::Mat4);
+pub struct RendererCallback(pub MVP);
 
 impl egui_wgpu::CallbackTrait for RendererCallback {
     fn prepare(
@@ -113,7 +156,7 @@ struct RendererResources {
 
 impl RendererResources {
     fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, params: &RendererCallback) {
-        self.model.write_uniform(queue, &params.0);
+        self.model.write_mvp(queue, &params.0);
     }
 
     fn paint(&self, render_pass: &mut wgpu::RenderPass<'_>) {

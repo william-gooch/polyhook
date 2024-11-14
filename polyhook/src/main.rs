@@ -83,7 +83,7 @@ impl eframe::App for App {
                 ui.painter()
                     .add(eframe::egui_wgpu::Callback::new_paint_callback(
                         rect,
-                        render::RendererCallback(self.renderer.mvp.matrix()),
+                        render::RendererCallback(self.renderer.mvp),
                     ));
 
                 let drag = response.drag_motion();
