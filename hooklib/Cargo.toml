@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+elsa = "1.10.0"
 itertools = "0.13.0"
 petgraph = { workspace = true }
 rhai = { workspace = true, features = ["sync"] }
-typed-arena = "2.0.2"
+slotmap = "1.0.7"
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }

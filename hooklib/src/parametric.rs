@@ -1,7 +1,7 @@
-use std::{cell::RefCell, fmt::Display, sync::Arc};
+use std::{cell::RefCell, fmt::Display, ops::{Deref, DerefMut}, sync::Arc};
 
+use elsa::FrozenVec;
 use itertools::Itertools;
-use typed_arena::Arena;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct Identifier(Arc<str>);
@@ -20,15 +20,15 @@ where T: Into<Arc<str>> {
 }
 
 #[derive(Default)]
-pub struct ParametricPattern<'ar> {
-    root: RefCell<Option<OperationRef<'ar>>>,
-    nodes: Arena<Operation<'ar>>,
+pub struct ParametricPattern {
+    root: Option<OperationRef>,
+    nodes: FrozenVec<Box<RefCell<Operation>>>,
 }
 
-impl<'ar> ParametricPattern<'ar> {
+impl ParametricPattern {
     pub fn defined_identifiers(&self) -> Vec<Identifier> {
         let mut ids = vec![];
-        self.walk(|op| match op {
+        self.walk(&mut |op| match op {
             Operation::Define(identifier, _) => ids.push(identifier.clone()),
             _ => ()
         });
@@ -38,29 +38,43 @@ impl<'ar> ParametricPattern<'ar> {
             .collect::<Vec<_>>()
     }
 
-    pub fn build(&'ar self, root: OperationRef<'ar>) {
-        self.root.replace(Some(root));
+    pub fn build(&mut self, root: OperationRef) {
+        self.root.replace(root);
     }
 
-    fn add_node(&'ar self, operation: Operation<'ar>) -> OperationRef<'ar> {
-        OperationRef(self.nodes.alloc(operation))
+    pub fn root(&self) -> Option<OperationRef> {
+        self.root
     }
 
-    pub fn define   (&'ar self, name: impl Into<Identifier>, op: OperationRef<'ar>) -> OperationRef<'ar>
+    pub fn get(&self, node: OperationRef) -> Option<impl Deref<Target = Operation> + use<'_>> {
+        Some(self.nodes.get(node.0)?.borrow())
+    }
+
+    pub fn get_mut(&self, node: OperationRef) -> Option<impl DerefMut<Target = Operation> + use<'_>> {
+        Some(self.nodes.get(node.0)?.borrow_mut())
+    }
+
+    fn add_node(&self, operation: Operation) -> OperationRef {
+        let new_ref = OperationRef(self.nodes.len());
+        self.nodes.push(Box::new(RefCell::new(operation)));
+        new_ref
+    }
+
+    pub fn define   (&self, name: impl Into<Identifier>, op: OperationRef) -> OperationRef
         { self.add_node(Operation::Define(name.into(), op)) }
-    pub fn literal  (&'ar self, value: u32) -> OperationRef<'ar>
+    pub fn literal  (&self, value: u32) -> OperationRef
         { self.add_node(Operation::Literal(value)) }
-    pub fn variable (&'ar self, name: impl Into<Identifier>) -> OperationRef<'ar>
+    pub fn variable (&self, name: impl Into<Identifier>) -> OperationRef
         { self.add_node(Operation::Variable(name.into())) }
-    pub fn call     (&'ar self, name: impl Into<Identifier>) -> OperationRef<'ar>
+    pub fn call     (&self, name: impl Into<Identifier>) -> OperationRef
         { self.add_node(Operation::Call(name.into())) }
-    pub fn seq      (&'ar self, ops: impl IntoIterator<Item = OperationRef<'ar>>) -> OperationRef<'ar>
+    pub fn seq      (&self, ops: impl IntoIterator<Item = OperationRef>) -> OperationRef
         { self.add_node(Operation::Seq(ops.into_iter().collect())) }
-    pub fn repeat   (&'ar self, n: OperationRef<'ar>, op: OperationRef<'ar>) -> OperationRef<'ar>
+    pub fn repeat   (&self, n: OperationRef, op: OperationRef) -> OperationRef
         { self.add_node(Operation::Repeat(n, op)) }
 
     fn op_to_script(&self, op: OperationRef) -> String {
-        match op.0 {
+        match &*self.nodes[op.0].borrow() {
             Operation::Define(name, op) => format!("let {name} = {}", self.op_to_script(*op)),
             Operation::Literal(value) => format!("{value}"),
             Operation::Variable(name) => format!("{name}"),
@@ -71,57 +85,61 @@ impl<'ar> ParametricPattern<'ar> {
     }
 
     pub fn to_script(&self) -> String {
-        self.op_to_script(self.root.borrow().expect("No root node"))
+        self.op_to_script(self.root.expect("No root node"))
     }
 
-    fn op_walk<F>(&self, op_id: OperationRef, mut f: F)
-    where F: FnMut(&Operation) {
-        let op = op_id.0;
+    fn op_walk(&self, op_id: OperationRef, f: &mut dyn FnMut(&Operation)) {
+        let op = &*self.nodes[op_id.0].borrow();
         f(op);
         match op {
-            Operation::Define(_, operation) => self.op_walk(*operation, &mut f),
-            Operation::Seq(ops) => ops.iter().for_each(|op| self.op_walk(*op, &mut f)),
+            Operation::Define(_, operation) => self.op_walk(*operation, f),
+            Operation::Seq(ops) => {
+                for op in ops.iter() {
+                    self.op_walk(*op, f);
+                }
+            },
             Operation::Repeat(n, op) => {
-                self.op_walk(*n, &mut f);
-                self.op_walk(*op, &mut f);
+                self.op_walk(*n, f);
+                self.op_walk(*op, f);
             },
             _ => {}
         }
     }
 
-    pub fn walk<F>(&self, f: F)
-    where F: FnMut(&Operation) {
-        self.op_walk(self.root.borrow().expect("No root node"), f);
+    pub fn walk(&self, f: &mut dyn FnMut(&Operation)) {
+        self.op_walk(self.root.expect("No root node"), f);
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct OperationRef<'ar>(&'ar Operation<'ar>);
+#[derive(Clone, Copy, Hash)]
+pub struct OperationRef(usize);
 
-pub enum Operation<'ar> {
-    Define(Identifier, OperationRef<'ar>),
+pub enum Operation {
+    Define(Identifier, OperationRef),
     Literal(u32),
     Variable(Identifier),
     Call(Identifier),
-    Seq(Vec<OperationRef<'ar>>),
-    Repeat(OperationRef<'ar>, OperationRef<'ar>),
+    Seq(Vec<OperationRef>),
+    Repeat(OperationRef, OperationRef),
 }
 
-pub fn example_flat() -> ParametricPattern<'static> {
-    let pattern = ParametricPattern::default();
+pub fn example_flat<'a>() -> ParametricPattern {
+    let mut p: ParametricPattern = ParametricPattern::default();
 
-    let root = pattern.seq([
-            pattern.define("stitches", pattern.literal(15)),
-            pattern.repeat(pattern.variable("stitches"), pattern.call("chain")),
-            pattern.repeat(pattern.variable("stitches"), pattern.seq([
-                pattern.call("turn"),
-                pattern.repeat(pattern.variable("stitches"), pattern.call("dc"))
+    let root = p.seq([
+            p.define("stitches", p.literal(15)),
+            p.define("x", p.literal(5)),
+            p.define("y", p.literal(6)),
+            p.repeat(p.variable("stitches"), p.call("chain")),
+            p.repeat(p.variable("stitches"), p.seq([
+                p.call("turn"),
+                p.repeat(p.variable("stitches"), p.call("dc"))
             ])),
         ]);
     
-    pattern.build(root);
+    p.build(root);
 
-    pattern
+    p
 }
 
 #[cfg(test)]
