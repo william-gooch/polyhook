@@ -4,6 +4,7 @@ use elsa::FrozenVec;
 use itertools::Itertools;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+// TODO: store all identifiers with unique IDs so they can be renamed without breaking references
 pub struct Identifier(Arc<str>);
 
 impl Display for Identifier {
@@ -130,10 +131,10 @@ pub fn example_flat<'a>() -> ParametricPattern {
             p.define("stitches", p.literal(15)),
             p.define("x", p.literal(5)),
             p.define("y", p.literal(6)),
-            p.repeat(p.variable("stitches"), p.call("chain")),
+            p.repeat(p.variable("stitches"), p.seq([p.call("chain")])),
             p.repeat(p.variable("stitches"), p.seq([
                 p.call("turn"),
-                p.repeat(p.variable("stitches"), p.call("dc"))
+                p.repeat(p.variable("stitches"), p.seq([p.call("dc")]))
             ])),
         ]);
     
