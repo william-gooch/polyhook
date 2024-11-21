@@ -80,7 +80,7 @@ impl ParametricPattern {
             Operation::Literal(value) => format!("{value}"),
             Operation::Variable(name) => format!("{name}"),
             Operation::Call(name) => format!("{name}()"),
-            Operation::Seq(v) => format!("{{ {} }}", v.iter().map(|op| self.op_to_script(*op)).join(";")),
+            Operation::Seq(v) => format!("{{\n{}\n}}", v.iter().map(|op| self.op_to_script(*op)).join(";\n")),
             Operation::Repeat(n, op) => format!("{} # || {}", self.op_to_script(*n), self.op_to_script(*op)),
         }
     }
