@@ -24,7 +24,7 @@ impl Widget for &mut ParametricView {
                 self.cached_identifiers = self.pattern.defined_identifiers();
                 self.pattern_ui(ui);
                 if ui.button("Convert to Script").clicked() {
-                    
+                    println!("{}", self.pattern.to_script());
                 }
             })
             .response

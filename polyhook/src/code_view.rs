@@ -4,10 +4,11 @@ use egui::{Color32, TextStyle};
 use egui_extras::syntax_highlighting::{highlight, CodeTheme};
 use hooklib::examples;
 
-use crate::model::{pattern_model::model_from_pattern, ModelData};
+use crate::model::{pattern_model::{model_from_pattern, model_from_pattern_2d}, ModelData};
 
 pub struct CodeView {
     code: String,
+    is_2d_mode: bool,
     err: Option<Box<dyn Error + Send + Sync>>,
     thread: Option<JoinHandle<Result<ModelData, Box<dyn Error + Send + Sync>>>>,
 }
@@ -16,6 +17,7 @@ impl Default for CodeView {
     fn default() -> Self {
         Self {
             code: examples::EXAMPLE_SPIRAL_ROUNDS.into(),
+            is_2d_mode: false,
             err: None,
             thread: None,
         }
@@ -29,10 +31,15 @@ impl CodeView {
 
     fn start_render(&mut self) {
         let code = self.code.clone();
+        let is_2d_mode = self.is_2d_mode;
         self.thread = Some(spawn(move || {
             let pattern = hooklib::script::PatternScript::eval_script(&code);
             match pattern {
-                Ok(pattern) => Ok(model_from_pattern(&pattern)),
+                Ok(pattern) => if is_2d_mode {
+                    Ok(model_from_pattern_2d(&pattern))
+                } else {
+                    Ok(model_from_pattern(&pattern))
+                },
                 Err(err) => Err(err),
             }
         }));
@@ -133,6 +140,7 @@ impl CodeView {
                     });
 
                 ui.add_enabled_ui(self.thread.as_ref().is_none_or(|t| t.is_finished()), |ui| {
+                    ui.checkbox(&mut self.is_2d_mode, "2D Mode");
                     let button = ui.add_sized(ui.available_size(), egui::Button::new("Render"));
                     if button.clicked() {
                         self.err = None;
