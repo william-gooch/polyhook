@@ -1,4 +1,4 @@
-use std::{error::Error, thread::{spawn, JoinHandle}};
+use std::cell::RefCell;
 
 use egui::{Color32, TextStyle};
 use egui_extras::syntax_highlighting::{highlight, CodeTheme};
@@ -7,19 +7,13 @@ use hooklib::examples;
 use crate::model::{pattern_model::{model_from_pattern, model_from_pattern_2d}, ModelData};
 
 pub struct CodeView {
-    code: String,
-    is_2d_mode: bool,
-    err: Option<Box<dyn Error + Send + Sync>>,
-    thread: Option<JoinHandle<Result<ModelData, Box<dyn Error + Send + Sync>>>>,
+    pub code: String
 }
 
 impl Default for CodeView {
     fn default() -> Self {
         Self {
             code: examples::EXAMPLE_SPIRAL_ROUNDS.into(),
-            is_2d_mode: false,
-            err: None,
-            thread: None,
         }
     }
 }
@@ -29,47 +23,12 @@ impl CodeView {
         self.code = code.into();
     }
 
-    fn start_render(&mut self) {
-        let code = self.code.clone();
-        let is_2d_mode = self.is_2d_mode;
-        self.thread = Some(spawn(move || {
-            let pattern = hooklib::script::PatternScript::eval_script(&code);
-            match pattern {
-                Ok(pattern) => if is_2d_mode {
-                    Ok(model_from_pattern_2d(&pattern))
-                } else {
-                    Ok(model_from_pattern(&pattern))
-                },
-                Err(err) => Err(err),
-            }
-        }));
-    }
-
-    fn check_render(&mut self) -> Option<Result<ModelData, Box<dyn Error + Send + Sync>>> {
-        if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
-            Some(self
-                .thread
-                .take()
-                .unwrap()
-                .join()
-                .expect("Failed to join thread."))
-        } else {
-            None
-        }
-    }
-
-    pub fn code_view_show(&mut self, ui: &mut egui::Ui) -> Option<ModelData> {
+    pub fn code_view_show(&mut self, ui: &mut egui::Ui) {
         egui::Frame::default()
             .fill(ui.visuals().extreme_bg_color)
             .stroke(ui.visuals().window_stroke)
             .rounding(ui.visuals().window_rounding)
             .show(ui, |ui| {
-                if let Some(err) = &self.err {
-                    let err_str = format!("{err}");
-
-                    ui
-                        .colored_label(Color32::RED, err_str);
-                }
 
                 egui::ScrollArea::vertical()
                     .max_height(ui.available_height() - 50.0)
@@ -138,24 +97,6 @@ impl CodeView {
                             );
                         })
                     });
-
-                ui.add_enabled_ui(self.thread.as_ref().is_none_or(|t| t.is_finished()), |ui| {
-                    ui.checkbox(&mut self.is_2d_mode, "2D Mode");
-                    let button = ui.add_sized(ui.available_size(), egui::Button::new("Render"));
-                    if button.clicked() {
-                        self.err = None;
-                        self.start_render();
-                    }
-                });
             });
-
-        match self.check_render() {
-            Some(Ok(model)) => Some(model),
-            Some(Err(err)) => {
-                self.err = Some(err);
-                None
-            },
-            _ => None,
-        }
     }
 }

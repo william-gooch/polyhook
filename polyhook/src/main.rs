@@ -6,16 +6,92 @@ mod transform;
 mod code_view;
 mod parametric_view;
 
-use egui::Vec2;
+use egui::{Color32, Ui, Vec2};
 use hooklib::examples;
+use model::pattern_model::{model_from_pattern, model_from_pattern_2d};
+use model::ModelData;
 use parametric_view::ParametricView;
 use std::sync::Arc;
+
+use std::{cell::RefCell, error::Error, thread::{spawn, JoinHandle}};
+
+#[derive(Default)]
+struct RenderButton {
+    err: Option<Box<dyn Error + Send + Sync>>,
+    thread: Option<JoinHandle<Result<ModelData, Box<dyn Error + Send + Sync>>>>,
+    is_2d_mode: bool,
+}
+
+impl RenderButton {
+    fn start_render(&mut self, code: String) {
+        let is_2d_mode = self.is_2d_mode;
+        self.thread = Some(spawn(move || {
+            let pattern = hooklib::script::PatternScript::eval_script(code.as_ref());
+            match pattern {
+                Ok(pattern) => if is_2d_mode {
+                    Ok(model_from_pattern_2d(&pattern))
+                } else {
+                    Ok(model_from_pattern(&pattern))
+                },
+                Err(err) => Err(err),
+            }
+        }));
+    }
+
+    fn check_render(&mut self) -> Option<Result<ModelData, Box<dyn Error + Send + Sync>>> {
+        if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
+            Some(self
+                .thread
+                .take()
+                .unwrap()
+                .join()
+                .expect("Failed to join thread."))
+        } else {
+            None
+        }
+    }
+
+    fn show<F: Fn() -> String>(&mut self, ui: &mut Ui, get_code: F) -> Option<ModelData> {
+        if let Some(err) = &self.err {
+            let err_str = format!("{err}");
+
+            ui
+                .colored_label(Color32::RED, err_str);
+        }
+
+        ui.add_enabled_ui(self.thread.as_ref().is_none_or(|t| t.is_finished()), |ui| {
+            ui.checkbox(&mut self.is_2d_mode, "2D Mode");
+            let button = ui.add_sized(ui.available_size(), egui::Button::new("Render"));
+            if button.clicked() {
+                self.err = None;
+                self.start_render(get_code());
+            }
+        });
+
+        match self.check_render() {
+            Some(Ok(model)) => Some(model),
+            Some(Err(err)) => {
+                self.err = Some(err);
+                None
+            },
+            _ => None,
+        }
+    }
+}
+
+#[derive(PartialEq)]
+enum AppTab {
+    Parametric,
+    Code,
+}
 
 struct App {
     code_view: code_view::CodeView,
     parametric_view: ParametricView,
     renderer: render::Renderer,
+    render_button: RenderButton,
     orbit: transform::Orbit,
+    tab: AppTab,
 }
 
 impl App {
@@ -38,11 +114,13 @@ impl App {
             code_view: Default::default(),
             parametric_view: Default::default(),
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
+            render_button: Default::default(),
             orbit: transform::Orbit {
                 phi: 0.0,
                 theta: 0.0,
                 d: 3.0,
             },
+            tab: AppTab::Code,
         }
     }
 }
@@ -65,18 +143,30 @@ impl eframe::App for App {
                 .resizable(true)
                 .default_width(ui.available_width() * 0.5)
                 .show_inside(ui, |ui| {
-                    let new_model = self.code_view.code_view_show(ui);
+                    ui.horizontal(|ui| {
+                        if ui.selectable_label(self.tab == AppTab::Code, "Code View").clicked() {
+                            self.tab = AppTab::Code;
+                        }
+                        if ui.selectable_label(self.tab == AppTab::Parametric, "Parametric View").clicked() {
+                            self.tab = AppTab::Parametric;
+                        }
+                    });
+
+                    if self.tab == AppTab::Code {
+                        self.code_view.code_view_show(ui);
+                    } else if self.tab == AppTab::Parametric {
+                        ui.add(&mut self.parametric_view);
+                    }
+
+                    let new_model = self.render_button.show(ui, || if self.tab == AppTab::Code {
+                        self.code_view.code.clone()
+                    } else {
+                        self.parametric_view.get_code()
+                    });
                     if let Some(new_model) = new_model {
                         // TODO: switch the model to the new one
                         self.renderer.set_model(new_model);
                     }
-                });
-
-            egui::SidePanel::right("right_panel")
-                .resizable(true)
-                .default_width(ui.available_width() * 0.5)
-                .show_inside(ui, |ui| {
-                    ui.add(&mut self.parametric_view)
                 });
 
             egui::CentralPanel::default().show_inside(ui, |ui| {
