@@ -1,6 +1,6 @@
-use std::time::{Instant, Duration};
-use egui::{popup, Color32, RichText, Sense, Stroke, Style, Widget};
+use egui::{Color32, Stroke, Widget};
 use hooklib::parametric::{example_flat, Identifier, Operation, OperationRef, ParametricPattern};
+use std::time::{Duration, Instant};
 
 pub struct ParametricView {
     cached_identifiers: Vec<Identifier>,
@@ -27,12 +27,12 @@ impl Widget for &mut ParametricView {
                         let r = self.pattern_ui(ui);
                         ui.allocate_space(ui.available_size());
                         r
-                    }).response
+                    })
+                    .response
             });
         r.inner
     }
 }
-
 
 #[derive(Clone, Default)]
 struct ShouldShowAdd(Option<Instant>);
@@ -78,26 +78,36 @@ impl ParametricView {
         let w = ui.available_width();
         let mut frame = egui::Frame::none().begin(ui);
         let add_resp = frame.content_ui.add_sized(
-            egui::Vec2::new(w, 10.0), 
-            egui::Button::new("(+)")
-                .frame(false)
+            egui::Vec2::new(w, 10.0),
+            egui::Button::new("(+)").frame(false),
         );
         let p = frame.content_ui.painter();
         let line_color = ui.style().interact(&add_resp).text_color();
-        p.line_segment([
-            frame.content_ui.min_rect().left_center() + egui::vec2(10.0, 0.0),
-            frame.content_ui.min_rect().center()      + egui::vec2(-10.0, 0.0),
-        ], Stroke::new(1.0, line_color));
-        p.line_segment([
-            frame.content_ui.min_rect().right_center() + egui::vec2(-10.0, 0.0),
-            frame.content_ui.min_rect().center()       + egui::vec2(10.0, 0.0),
-        ], Stroke::new(1.0, line_color));
+        p.line_segment(
+            [
+                frame.content_ui.min_rect().left_center() + egui::vec2(10.0, 0.0),
+                frame.content_ui.min_rect().center() + egui::vec2(-10.0, 0.0),
+            ],
+            Stroke::new(1.0, line_color),
+        );
+        p.line_segment(
+            [
+                frame.content_ui.min_rect().right_center() + egui::vec2(-10.0, 0.0),
+                frame.content_ui.min_rect().center() + egui::vec2(10.0, 0.0),
+            ],
+            Stroke::new(1.0, line_color),
+        );
         frame.end(ui);
 
         add_resp
     }
 
-    fn add_step_ui(&self, ui: &mut egui::Ui, resp: egui::Response, at: usize) -> egui::InnerResponse<Option<AddStep>> {
+    fn add_step_ui(
+        &self,
+        ui: &mut egui::Ui,
+        resp: egui::Response,
+        at: usize,
+    ) -> egui::InnerResponse<Option<AddStep>> {
         let popup_id = ui.make_persistent_id(resp.id.with(at).with("new_step_open"));
         let popup_open = ui.data(|d| d.get_temp::<bool>(popup_id)).unwrap_or(false);
 
@@ -121,12 +131,19 @@ impl ParametricView {
 
             let to_add = if popup_open {
                 let popup_resp = ui.vertical_centered_justified(|ui| {
-                    if ui.button("Define").clicked() { Some(OperationType::Define) }
-                    else if ui.button("Literal").clicked() { Some(OperationType::Literal) }
-                    else if ui.button("Variable").clicked() { Some(OperationType::Variable) }
-                    else if ui.button("Call").clicked() { Some(OperationType::Call) }
-                    else if ui.button("Repeat").clicked() { Some(OperationType::Repeat) }
-                    else { None }
+                    if ui.button("Define").clicked() {
+                        Some(OperationType::Define)
+                    } else if ui.button("Literal").clicked() {
+                        Some(OperationType::Literal)
+                    } else if ui.button("Variable").clicked() {
+                        Some(OperationType::Variable)
+                    } else if ui.button("Call").clicked() {
+                        Some(OperationType::Call)
+                    } else if ui.button("Repeat").clicked() {
+                        Some(OperationType::Repeat)
+                    } else {
+                        None
+                    }
                 });
                 if popup_resp.inner.is_some() {
                     ui.data_mut(|d| {
@@ -134,8 +151,13 @@ impl ParametricView {
                         *v = false;
                     });
                 }
-                Some(egui::InnerResponse::new(popup_resp.inner.map(|t| AddStep { at, kind: t }), popup_resp.response))
-            } else { None };
+                Some(egui::InnerResponse::new(
+                    popup_resp.inner.map(|t| AddStep { at, kind: t }),
+                    popup_resp.response,
+                ))
+            } else {
+                None
+            };
 
             let total_resp = resp.clone() | add_resp.clone();
             let total_resp = if let Some(r) = to_add.as_ref() {
@@ -152,8 +174,10 @@ impl ParametricView {
                 }
             });
 
-            egui::InnerResponse::new(to_add.map(|r| r.inner).flatten(), total_resp)
-        } else { egui::InnerResponse::new(None, resp) }
+            egui::InnerResponse::new(to_add.and_then(|r| r.inner), total_resp)
+        } else {
+            egui::InnerResponse::new(None, resp)
+        }
     }
 
     fn operation_ui(&self, ui: &mut egui::Ui, operation: OperationRef) -> egui::Response {
@@ -168,51 +192,59 @@ impl ParametricView {
                                 let resp = self.operation_ui(ui, *op);
                                 self.add_step_ui(ui, resp, i)
                             })
-                            .reduce(|a, b| 
-                                egui::InnerResponse::new(a.inner.or(b.inner), a.response | b.response)
-                            )
+                            .reduce(|a, b| {
+                                egui::InnerResponse::new(
+                                    a.inner.or(b.inner),
+                                    a.response | b.response,
+                                )
+                            })
                             .unwrap_or_else(|| egui::InnerResponse::new(None, ui.response()))
-                    }).inner;
-                
+                    })
+                    .inner;
+
                 if let Some(add) = resp.inner {
                     println!("Add an operation after {}", add.at);
                     let op_to_add = match add.kind {
-                        OperationType::Define => self.pattern.define("new_variable", self.pattern.literal(0)),
+                        OperationType::Define => {
+                            self.pattern.define("new_variable", self.pattern.literal(0))
+                        }
                         OperationType::Literal => self.pattern.literal(0),
                         OperationType::Variable => self.pattern.variable("select variable..."),
                         OperationType::Call => self.pattern.call("chain"),
-                        OperationType::Repeat => self.pattern.repeat(self.pattern.literal(0), self.pattern.seq([])),
+                        OperationType::Repeat => self
+                            .pattern
+                            .repeat(self.pattern.literal(0), self.pattern.seq([])),
                     };
                     vec.insert(add.at + 1, op_to_add);
                 }
                 resp.response
-            },
+            }
             Operation::Define(identifier, operation) => {
                 ui.horizontal(|ui| {
                     ui.label(format!("define {identifier} as"));
                     self.operation_ui(ui, *operation);
                     ui.allocate_space([ui.available_width(), 0.0].into());
-                }).response
-            },
-            Operation::Literal(value) => {
-                ui.add(egui::DragValue::new(value))
-            },
+                })
+                .response
+            }
+            Operation::Literal(value) => ui.add(egui::DragValue::new(value)),
             Operation::Variable(identifier) => {
                 egui::ComboBox::from_id_salt(operation)
                     .selected_text(identifier.to_string())
                     .show_ui(ui, |ui| {
-                        self.cached_identifiers.iter()
-                            .for_each(|option| {
-                                ui.selectable_value(identifier, option.clone(), option.to_string());
-                            });
-                    }).response
-            },
+                        self.cached_identifiers.iter().for_each(|option| {
+                            ui.selectable_value(identifier, option.clone(), option.to_string());
+                        });
+                    })
+                    .response
+            }
             Operation::Call(identifier) => {
                 ui.horizontal(|ui| {
                     ui.label(format!("{identifier}"));
                     ui.allocate_space([ui.available_width(), 0.0].into());
-                }).response
-            },
+                })
+                .response
+            }
             Operation::Repeat(n, op) => {
                 let resp_1 = ui.horizontal(|ui| {
                     ui.label("do")
@@ -220,15 +252,10 @@ impl ParametricView {
                         .union(ui.label("times:"))
                 });
 
-                let resp_2 = ui.indent(0, |ui| {
-                    self.operation_ui(ui, *op)
-                });
+                let resp_2 = ui.indent(0, |ui| self.operation_ui(ui, *op));
 
-                resp_1.inner
-                    | resp_1.response
-                    | resp_2.inner
-                    | resp_2.response
-            },
+                resp_1.inner | resp_1.response | resp_2.inner | resp_2.response
+            }
         }
     }
 }

@@ -113,10 +113,6 @@ impl Model {
     }
 
     pub fn write_mvp(&self, queue: &wgpu::Queue, value: &Mvp) {
-        queue.write_buffer(
-            &self.buffers.uniform,
-            0,
-            bytemuck::cast_slice(&[*value]),
-        );
+        queue.write_buffer(&self.buffers.uniform, 0, bytemuck::cast_slice(&[*value]));
     }
 }

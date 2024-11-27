@@ -52,7 +52,7 @@ impl Renderer {
 
         let pattern = hooklib::pattern::test_pattern_sphere();
         let model = Model::new(model_from_pattern(&pattern), device, &shader);
-        
+
         wgpu_render_state
             .renderer
             .write()

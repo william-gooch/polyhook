@@ -13,7 +13,10 @@ use model::ModelData;
 use parametric_view::ParametricView;
 use std::sync::Arc;
 
-use std::{cell::RefCell, error::Error, thread::{spawn, JoinHandle}};
+use std::{
+    error::Error,
+    thread::{spawn, JoinHandle},
+};
 
 #[derive(Default)]
 struct RenderButton {
@@ -28,11 +31,13 @@ impl RenderButton {
         self.thread = Some(spawn(move || {
             let pattern = hooklib::script::PatternScript::eval_script(code.as_ref());
             match pattern {
-                Ok(pattern) => if is_2d_mode {
-                    Ok(model_from_pattern_2d(&pattern))
-                } else {
-                    Ok(model_from_pattern(&pattern))
-                },
+                Ok(pattern) => {
+                    if is_2d_mode {
+                        Ok(model_from_pattern_2d(&pattern))
+                    } else {
+                        Ok(model_from_pattern(&pattern))
+                    }
+                }
                 Err(err) => Err(err),
             }
         }));
@@ -40,12 +45,13 @@ impl RenderButton {
 
     fn check_render(&mut self) -> Option<Result<ModelData, Box<dyn Error + Send + Sync>>> {
         if self.thread.as_ref().is_some_and(|t| t.is_finished()) {
-            Some(self
-                .thread
-                .take()
-                .unwrap()
-                .join()
-                .expect("Failed to join thread."))
+            Some(
+                self.thread
+                    .take()
+                    .unwrap()
+                    .join()
+                    .expect("Failed to join thread."),
+            )
         } else {
             None
         }
@@ -55,8 +61,7 @@ impl RenderButton {
         if let Some(err) = &self.err {
             let err_str = format!("{err}");
 
-            ui
-                .colored_label(Color32::RED, err_str);
+            ui.colored_label(Color32::RED, err_str);
         }
 
         ui.add_enabled_ui(self.thread.as_ref().is_none_or(|t| t.is_finished()), |ui| {
@@ -73,7 +78,7 @@ impl RenderButton {
             Some(Err(err)) => {
                 self.err = Some(err);
                 None
-            },
+            }
             _ => None,
         }
     }
@@ -144,10 +149,16 @@ impl eframe::App for App {
                 .default_width(ui.available_width() * 0.5)
                 .show_inside(ui, |ui| {
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(self.tab == AppTab::Code, "Code View").clicked() {
+                        if ui
+                            .selectable_label(self.tab == AppTab::Code, "Code View")
+                            .clicked()
+                        {
                             self.tab = AppTab::Code;
                         }
-                        if ui.selectable_label(self.tab == AppTab::Parametric, "Parametric View").clicked() {
+                        if ui
+                            .selectable_label(self.tab == AppTab::Parametric, "Parametric View")
+                            .clicked()
+                        {
                             self.tab = AppTab::Parametric;
                         }
                     });
@@ -158,10 +169,12 @@ impl eframe::App for App {
                         ui.add(&mut self.parametric_view);
                     }
 
-                    let new_model = self.render_button.show(ui, || if self.tab == AppTab::Code {
-                        self.code_view.code.clone()
-                    } else {
-                        self.parametric_view.get_code()
+                    let new_model = self.render_button.show(ui, || {
+                        if self.tab == AppTab::Code {
+                            self.code_view.code.clone()
+                        } else {
+                            self.parametric_view.get_code()
+                        }
                     });
                     if let Some(new_model) = new_model {
                         // TODO: switch the model to the new one
