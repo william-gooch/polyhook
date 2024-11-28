@@ -1,10 +1,7 @@
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4Swizzles};
 use itertools::Itertools;
 use petgraph::{
-    algo::dijkstra,
-    graph::NodeIndex,
-    visit::{EdgeRef, IntoNodeReferences},
-    Undirected,
+    algo::dijkstra, graph::NodeIndex, prelude::StableGraph, visit::{EdgeRef, IntoNodeReferences}, Graph, Undirected
 };
 use rand::prelude::*;
 use std::ops::{Add, Mul, Sub};
@@ -48,8 +45,6 @@ struct Term {
     w: f32,
 }
 
-type Graph<C> = petgraph::Graph<C, f32, Undirected>;
-
 const EPSILON: f32 = 0.01;
 const SGD_ITERS: u32 = 10;
 
@@ -75,7 +70,7 @@ fn schedule(terms: &[Term], t_max: u32) -> Vec<f32> {
         .collect::<Vec<_>>()
 }
 
-pub fn sgd<C, N, E>(g: &petgraph::Graph<N, E>) -> Graph<C>
+pub fn sgd<C, N, E>(g: &Graph<N, E>) -> Graph<C, f32, Undirected>
 where
     C: SDGCoords,
     E: Into<f32> + Clone,
@@ -84,9 +79,9 @@ where
 
     // turn a crochet graph into pure vertices and edges
     let mut graph = g
-        .filter_map(
-            |_ix, _node| Some(SDGCoords::random(&mut rng)),
-            |_ix, edge| Some(edge.clone().into()),
+        .map(
+            |_ix, _node| SDGCoords::random(&mut rng),
+            |_ix, edge| edge.clone().into(),
         )
         .into_edge_type::<Undirected>();
 
@@ -139,7 +134,7 @@ const STEP_SIZE: f32 = 0.1;
 const ATTRACTIVE_FORCE: f32 = 2.0;
 const REPULSIVE_FORCE: f32 = 0.0;
 
-pub fn fdg(g: &mut Graph<Vec3>) {
+pub fn fdg(g: &mut Graph<Vec3, f32, Undirected>) {
     for _ in 1..=FDG_ITERS {
         let new_pos = g
             .node_references()
@@ -172,7 +167,7 @@ pub fn fdg(g: &mut Graph<Vec3>) {
     }
 }
 
-pub fn normalize(g: &mut Graph<Vec3>) {
+pub fn normalize(g: &mut Graph<Vec3, f32, Undirected>) {
     let avg_position = g.node_weights().sum::<Vec3>() / g.node_count() as f32;
     let (central, central_pos) = g
         .node_references()

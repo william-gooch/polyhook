@@ -1,40 +1,49 @@
-pub mod pattern_model;
-
 use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use eframe::egui_wgpu::wgpu;
-use glam::Vec3;
+use glam::{Vec2, Vec3};
+use std::mem::offset_of;
 
-use crate::{shader::Shader, transform::Mvp};
+use crate::render::{shader::Shader, texture::Texture, transform::Mvp};
+
+use super::shader::BindGroups;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Vertex {
     position: [f32; 4],
+    uv: [f32; 2],
 }
 
 impl Vertex {
-    pub const fn new(position: [f32; 4]) -> Self {
-        Self { position }
+    pub const fn new(position: [f32; 4], uv: [f32; 2]) -> Self {
+        Self { position, uv }
     }
 
     pub const fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: size_of::<Vertex>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x4,
-                offset: 0,
-                shader_location: 0,
-            }],
+            attributes: &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: offset_of!(Vertex, position) as u64,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x2,
+                    offset: offset_of!(Vertex, uv) as u64,
+                    shader_location: 1
+                },
+            ],
         }
     }
 }
 
-impl From<Vec3> for Vertex {
-    fn from(pos: Vec3) -> Self {
-        Self::new([pos.x, pos.y, pos.z, 1.0])
+impl From<(Vec3, Vec2)> for Vertex {
+    fn from((pos, uv): (Vec3, Vec2)) -> Self {
+        Self::new([pos.x, pos.y, pos.z, 1.0], [uv.x, uv.y])
     }
 }
 
@@ -48,13 +57,20 @@ impl ModelData {
     pub fn num_indices(&self) -> usize {
         self.indices.len()
     }
+
+    pub fn new(vertices: Vec<Vertex>, indices: Vec<u16>) -> Self {
+        Self {
+            vertices,
+            indices,
+        }
+    }
 }
 
 pub struct ModelBuffers {
     vertex: wgpu::Buffer,
     index: wgpu::Buffer,
     uniform: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
+    bind_groups: BindGroups,
 }
 
 #[derive(Clone)]
@@ -64,7 +80,7 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new(data: ModelData, device: &wgpu::Device, shader: &Shader) -> Self {
+    pub fn new(data: ModelData, device: &wgpu::Device, shader: &Shader, texture: &Texture) -> Self {
         use wgpu::util::DeviceExt;
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -85,20 +101,13 @@ impl Model {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
         });
 
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("polyhook_bdg"),
-            layout: shader.bind_group_layout(),
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-        });
+        let bind_groups = shader.init_bind_groups(device, &uniform_buffer, texture);
 
         let buffers = ModelBuffers {
             vertex: vertex_buffer,
             index: index_buffer,
             uniform: uniform_buffer,
-            bind_group,
+            bind_groups,
         };
         let buffers = Arc::new(buffers);
 
@@ -106,7 +115,8 @@ impl Model {
     }
 
     pub fn draw(&self, render_pass: &mut wgpu::RenderPass<'_>) {
-        render_pass.set_bind_group(0, &self.buffers.bind_group, &[]);
+        render_pass.set_bind_group(0, &self.buffers.bind_groups.uniform, &[]);
+        render_pass.set_bind_group(1, &self.buffers.bind_groups.texture, &[]);
         render_pass.set_index_buffer(self.buffers.index.slice(..), wgpu::IndexFormat::Uint16);
         render_pass.set_vertex_buffer(0, self.buffers.vertex.slice(..));
         render_pass.draw_indexed(0..(self.data.num_indices() as u32), 0, 0..1);

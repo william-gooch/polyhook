@@ -156,13 +156,13 @@ impl Pattern {
             .flatten()
             .collect::<Vec<_>>();
 
-        let mut new_graph = new_graph.filter_map(
-            |_ix, _node| Some(()),
+        let mut new_graph = new_graph.map(
+            |_ix, _node| (),
             |ix, edge| {
                 let (start, end) = new_graph.edge_endpoints(ix).unwrap();
                 let start = *new_graph.node_weight(start).unwrap();
                 let end = *new_graph.node_weight(end).unwrap();
-                Some(match edge {
+                match edge {
                     EdgeType::Previous => {
                         if start.stitch_type() == "ch" && end == Node::dc() {
                             1.0
@@ -173,7 +173,7 @@ impl Pattern {
                     EdgeType::Insert => 1.0,
                     EdgeType::Slip => 0.000001,
                     EdgeType::Neighbour => 1.0,
-                })
+                }
             },
         );
 

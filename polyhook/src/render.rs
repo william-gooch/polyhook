@@ -1,7 +1,14 @@
-use crate::model::pattern_model::model_from_pattern;
-use crate::model::{Model, ModelData, Vertex};
-use crate::shader::Shader;
-use crate::transform::Mvp;
+pub mod model;
+pub mod pattern_model;
+pub mod shader;
+pub mod transform;
+pub mod texture;
+
+use pattern_model::model_from_pattern;
+use model::{Model, ModelData, Vertex};
+use shader::Shader;
+use texture::Texture;
+use transform::Mvp;
 
 use eframe::egui_wgpu;
 use eframe::egui_wgpu::wgpu;
@@ -20,7 +27,7 @@ impl Renderer {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("polyhook"),
-            bind_group_layouts: &[shader.bind_group_layout()],
+            bind_group_layouts: &shader.bind_group_layouts()[..],
             push_constant_ranges: &[],
         });
 
@@ -40,8 +47,10 @@ impl Renderer {
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
             primitive: wgpu::PrimitiveState {
-                polygon_mode: wgpu::PolygonMode::Line,
-                topology: wgpu::PrimitiveTopology::LineList,
+                // polygon_mode: wgpu::PolygonMode::Line,
+                // topology: wgpu::PrimitiveTopology::LineList,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                topology: wgpu::PrimitiveTopology::TriangleList,
                 ..Default::default()
             },
             depth_stencil: None,
@@ -51,13 +60,17 @@ impl Renderer {
         });
 
         let pattern = hooklib::pattern::test_pattern_sphere();
-        let model = Model::new(model_from_pattern(&pattern), device, &shader);
+
+        let texture_bytes = include_bytes!("../assets/dc.png");
+        let texture = Texture::from_bytes(device, texture_bytes, "dc_texture");
+
+        let model = Model::new(model_from_pattern(&pattern), device, &shader, &texture);
 
         wgpu_render_state
             .renderer
             .write()
             .callback_resources
-            .insert(RendererResources { pipeline, model });
+            .insert(RendererResources { pipeline, model, texture });
 
         Some(Self {
             mvp: Mvp::new(),
@@ -67,7 +80,10 @@ impl Renderer {
     }
 
     pub fn set_model(&mut self, model: ModelData) {
-        let model = Model::new(model, &self.render_state.device, &self.shader);
+        let texture_bytes = include_bytes!("../assets/dc.png");
+        let texture = Texture::from_bytes(&self.render_state.device, texture_bytes, "dc_texture");
+
+        let model = Model::new(model, &self.render_state.device, &self.shader, &texture);
 
         let mut state = self.render_state.renderer.write();
         let resources = state
@@ -109,11 +125,13 @@ impl egui_wgpu::CallbackTrait for RendererCallback {
 struct RendererResources {
     pipeline: wgpu::RenderPipeline,
     model: Model,
+    texture: Texture,
 }
 
 impl RendererResources {
     fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, params: &RendererCallback) {
         self.model.write_mvp(queue, &params.0);
+        self.texture.write_image(queue);
     }
 
     fn paint(&self, render_pass: &mut wgpu::RenderPass<'_>) {

@@ -1,15 +1,13 @@
-mod model;
 mod render;
-mod shader;
-mod transform;
 
 mod code_view;
 mod parametric_view;
 
 use egui::{Color32, Ui, Vec2};
 use hooklib::examples;
-use model::pattern_model::{model_from_pattern, model_from_pattern_2d};
-use model::ModelData;
+use render::pattern_model::{model_from_pattern, model_from_pattern_2d};
+use render::model::ModelData;
+use render::transform::Orbit;
 use parametric_view::ParametricView;
 use std::sync::Arc;
 
@@ -95,7 +93,7 @@ struct App {
     parametric_view: ParametricView,
     renderer: render::Renderer,
     render_button: RenderButton,
-    orbit: transform::Orbit,
+    orbit: Orbit,
     tab: AppTab,
 }
 
@@ -120,7 +118,7 @@ impl App {
             parametric_view: Default::default(),
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
             render_button: Default::default(),
-            orbit: transform::Orbit {
+            orbit: Orbit {
                 phi: 0.0,
                 theta: 0.0,
                 d: 3.0,
