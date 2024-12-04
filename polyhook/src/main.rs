@@ -205,7 +205,7 @@ impl eframe::App for App {
             });
         });
 
-        //self.renderer.mvp.model = glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model;
+        // self.renderer.mvp.update_model(glam::Mat4::from_rotation_y(0.02) * self.renderer.mvp.model);
         ctx.request_repaint();
     }
 }
@@ -224,6 +224,7 @@ fn main() -> eframe::Result {
             }),
             ..Default::default()
         },
+        depth_buffer: 32,
         ..Default::default()
     };
     eframe::run_native(

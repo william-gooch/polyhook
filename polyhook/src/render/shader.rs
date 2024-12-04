@@ -1,6 +1,8 @@
+use std::num::NonZeroU64;
+
 use eframe::egui_wgpu::wgpu;
 
-use super::texture::Texture;
+use super::{texture::Texture, transform::Mvp};
 
 pub struct Shader {
     shader: wgpu::ShaderModule,
@@ -33,7 +35,7 @@ impl Shader {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: std::num::NonZeroU64::new(192),
+                        min_binding_size: NonZeroU64::new(size_of::<Mvp>() as u64),
                     },
                     count: None,
                 }],
@@ -59,6 +61,22 @@ impl Shader {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true }
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
                 ],
             });
 
@@ -77,7 +95,7 @@ impl Shader {
         vec![&self.uniform_bind_group_layout, &self.texture_bind_group_layout]
     }
 
-    pub fn init_bind_groups(&self, device: &wgpu::Device, uniform_buffer: &wgpu::Buffer, texture: &Texture) -> BindGroups{
+    pub fn init_bind_groups(&self, device: &wgpu::Device, uniform_buffer: &wgpu::Buffer, tex_diffuse: &Texture, tex_normal: &Texture) -> BindGroups{
         let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("uniform_bind_group"),
             layout: &self.uniform_bind_group_layout,
@@ -93,11 +111,19 @@ impl Shader {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                    resource: wgpu::BindingResource::TextureView(&tex_diffuse.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&tex_diffuse.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&tex_normal.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Sampler(&tex_normal.sampler),
                 },
             ],
         });

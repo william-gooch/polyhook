@@ -1,35 +1,28 @@
 use crate::render::model::ModelData;
 use glam::{Vec2, Vec3};
 use hooklib::pattern::{EdgeType, Pattern};
-use petgraph::{visit::{Dfs, EdgeFiltered, EdgeRef, NodeRef, Reversed}, Direction::{self, Incoming, Outgoing}};
+use petgraph::{graph::NodeIndex, visit::{Dfs, EdgeFiltered, EdgeRef, NodeRef, Reversed}, Direction::{self, Incoming, Outgoing}};
 use sgd::{sgd, SDGCoords};
 
 use super::Vertex;
 
-pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
-    let mut graph = sgd::<Vec3, _, _>(&pattern.triangulated_graph());
-    sgd::fdg(&mut graph);
-    sgd::normalize(&mut graph);
-
-    let graph = pattern.graph()
-        .map(
-            |ix, node| (graph.raw_nodes()[ix.index()].weight, node), 
-            |ix, edge| (graph.raw_edges()[ix.index()].weight, edge), 
-        );
-
+fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32, &EdgeType)>, start: NodeIndex) -> ModelData {
     let mut verts: Vec<Vertex> = Vec::new();
     let mut tris: Vec<[u16; 3]> = Vec::new();
 
-    let mut create_rect = |source_pos: Vec3, target_pos: Vec3, width: f32| {
+    let mut create_rect = |source_pos: Vec3, target_pos: Vec3, tangent: Vec3, width: f32| {
         let dir = target_pos - source_pos;
-        let width = dir.cross(source_pos).normalize() * dir.length() * width * 0.5;
+        let offset_len = dir.length() * width * 0.5;
+        let offset_x = tangent * offset_len;
+
+        let normal = dir.cross(tangent).normalize();
 
         let idx = verts.len() as u16;
         verts.extend([
-            Vertex::from((source_pos - width, [1.0, 0.0].into())),
-            Vertex::from((source_pos + width, [0.0, 0.0].into())),
-            Vertex::from((target_pos + width, [0.0, 1.0].into())),
-            Vertex::from((target_pos - width, [1.0, 1.0].into())),
+            Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), normal, tangent),
+            Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), normal, tangent),
+            Vertex::new(target_pos + offset_x, [0.0, 1.0].into(), normal, tangent),
+            Vertex::new(target_pos - offset_x, [1.0, 1.0].into(), normal, tangent),
         ].iter());
         tris.push([idx, idx + 1, idx + 2]);
         tris.push([idx + 2, idx + 3, idx]);
@@ -37,7 +30,7 @@ pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
 
     let visit = EdgeFiltered::from_fn(&graph, |e| *e.weight().1 == EdgeType::Previous);
     let visit_rev = Reversed(&visit);
-    let mut dfs = Dfs::new(&visit_rev, pattern.start());
+    let mut dfs = Dfs::new(&visit_rev, start);
     while let Some(node) = dfs.next(&visit_rev) {
         graph.edges_directed(node, Outgoing)
             .for_each(|e| {
@@ -45,19 +38,29 @@ pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
                     let source_pos = graph.node_weight(node).unwrap().0;
                     let target_pos = graph.node_weight(e.target()).unwrap().0;
 
-                    create_rect(source_pos, target_pos, 0.6);
+                    let tangent_1 = graph.edges_directed(node, Incoming)
+                        .find(|e| *e.weight().1 == EdgeType::Previous)
+                        .map(|e| graph.node_weight(e.source()).unwrap().0 - source_pos)
+                        .unwrap_or(Vec3::X);
+                    let tangent_2 = graph.edges_directed(node, Outgoing)
+                        .find(|e| *e.weight().1 == EdgeType::Previous)
+                        .map(|e| source_pos - graph.node_weight(e.target()).unwrap().0)
+                        .unwrap_or(Vec3::X);
+                    let tangent = (tangent_1 + tangent_2) / 2.0;
+
+                    create_rect(source_pos, target_pos, tangent, 0.85);
                 }
             });
 
-        graph.edges_directed(node, Incoming)
-            .for_each(|e| {
-                if *e.weight().1 == EdgeType::Previous {
-                    let source_pos = graph.node_weight(node).unwrap().0;
-                    let target_pos = graph.node_weight(e.source()).unwrap().0;
+        // graph.edges_directed(node, Incoming)
+        //     .for_each(|e| {
+        //         if *e.weight().1 == EdgeType::Previous {
+        //             let source_pos = graph.node_weight(node).unwrap().0;
+        //             let target_pos = graph.node_weight(e.source()).unwrap().0;
 
-                    create_rect(source_pos, target_pos, 0.6);
-                }
-            });
+        //             create_rect(source_pos, target_pos, 0.6);
+        //         }
+        //     });
     }
 
     ModelData::new(
@@ -74,17 +77,31 @@ pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
     )
 }
 
+pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
+    let mut graph = sgd::<Vec3, _, _>(&pattern.triangulated_graph());
+    sgd::fdg(&mut graph);
+    sgd::normalize(&mut graph);
+
+    let graph = pattern.graph()
+        .map(
+            |ix, node| (graph.raw_nodes()[ix.index()].weight, node), 
+            |ix, edge| (graph.raw_edges()[ix.index()].weight, edge), 
+        );
+
+    model_from_graph(graph, pattern.start())
+}
+
 pub fn model_from_pattern_2d(pattern: &Pattern) -> ModelData {
     let graph = sgd::<Vec2, _, _>(&pattern.triangulated_graph());
 
-    ModelData::new(
-        graph
-            .node_weights()
-            .map(|pos| Vertex::new([pos.x, pos.y, 0., 1.], [0.0, 0.0]))
-            .collect::<Vec<_>>(),
-        graph
-            .edge_references()
-            .flat_map(|e| [e.source().index() as u16, e.target().index() as u16])
-            .collect::<Vec<u16>>(),
-    )
+    let graph = pattern.graph()
+        .map(
+            |ix, node| {
+                let p = graph.raw_nodes()[ix.index()].weight;
+                ([p.x, p.y, 0.0].into(), node)
+            }, 
+            |ix, edge| (graph.raw_edges()[ix.index()].weight, edge), 
+        );
+
+    model_from_graph(graph, pattern.start())
 }

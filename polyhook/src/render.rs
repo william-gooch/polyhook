@@ -46,6 +46,13 @@ impl Renderer {
                 targets: &[Some(wgpu_render_state.target_format.into())],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             primitive: wgpu::PrimitiveState {
                 // polygon_mode: wgpu::PolygonMode::Line,
                 // topology: wgpu::PrimitiveTopology::LineList,
@@ -53,7 +60,6 @@ impl Renderer {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 ..Default::default()
             },
-            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: Default::default(),
@@ -61,16 +67,19 @@ impl Renderer {
 
         let pattern = hooklib::pattern::test_pattern_sphere();
 
-        let texture_bytes = include_bytes!("../assets/dc.png");
-        let texture = Texture::from_bytes(device, texture_bytes, "dc_texture");
+        let diffuse_bytes = include_bytes!("../assets/dc.png");
+        let tex_diffuse = Texture::from_bytes(device, diffuse_bytes, "dc_diffuse");
 
-        let model = Model::new(model_from_pattern(&pattern), device, &shader, &texture);
+        let normal_bytes = include_bytes!("../assets/dc_normal.png");
+        let tex_normal = Texture::from_bytes(device, normal_bytes, "dc_normal");
+
+        let model = Model::new(model_from_pattern(&pattern), device, &shader, &tex_diffuse, &tex_normal);
 
         wgpu_render_state
             .renderer
             .write()
             .callback_resources
-            .insert(RendererResources { pipeline, model, texture });
+            .insert(RendererResources { pipeline, model, tex_diffuse, tex_normal });
 
         Some(Self {
             mvp: Mvp::new(),
@@ -80,10 +89,15 @@ impl Renderer {
     }
 
     pub fn set_model(&mut self, model: ModelData) {
-        let texture_bytes = include_bytes!("../assets/dc.png");
-        let texture = Texture::from_bytes(&self.render_state.device, texture_bytes, "dc_texture");
+        let device = &*self.render_state.device;
 
-        let model = Model::new(model, &self.render_state.device, &self.shader, &texture);
+        let diffuse_bytes = include_bytes!("../assets/dc.png");
+        let tex_diffuse = Texture::from_bytes(device, diffuse_bytes, "dc_diffuse");
+
+        let normal_bytes = include_bytes!("../assets/dc_normal.png");
+        let tex_normal = Texture::from_bytes(device, normal_bytes, "dc_normal");
+
+        let model = Model::new(model, device, &self.shader, &tex_diffuse, &tex_normal);
 
         let mut state = self.render_state.renderer.write();
         let resources = state
@@ -92,6 +106,8 @@ impl Renderer {
             .expect("Couldn't get renderer resources");
 
         resources.model = model;
+        resources.tex_diffuse = tex_diffuse;
+        resources.tex_normal = tex_normal;
     }
 }
 
@@ -125,13 +141,15 @@ impl egui_wgpu::CallbackTrait for RendererCallback {
 struct RendererResources {
     pipeline: wgpu::RenderPipeline,
     model: Model,
-    texture: Texture,
+    tex_diffuse: Texture,
+    tex_normal: Texture,
 }
 
 impl RendererResources {
     fn prepare(&self, _device: &wgpu::Device, queue: &wgpu::Queue, params: &RendererCallback) {
         self.model.write_mvp(queue, &params.0);
-        self.texture.write_image(queue);
+        self.tex_diffuse.write_image(queue);
+        self.tex_normal.write_image(queue);
     }
 
     fn paint(&self, render_pass: &mut wgpu::RenderPass<'_>) {

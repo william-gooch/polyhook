@@ -6,7 +6,7 @@ pub struct Texture {
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
 
-    pub rgba: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    pub rgba: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
 }
 
 impl Texture {
@@ -31,7 +31,7 @@ impl Texture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: wgpu::TextureFormat::Rgba8Unorm,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -47,11 +47,12 @@ impl Texture {
             ..Default::default()
         });
 
-        Self { texture, view, sampler, rgba }
+        Self { texture, view, sampler, rgba: Some(rgba) }
     }
 
     pub fn write_image(&self, queue: &wgpu::Queue) {
-        let (width, height) = self.rgba.dimensions();
+        let rgba = self.rgba.as_ref().expect("Attempted to write image of a non-image texture (depth?)");
+        let (width, height) = rgba.dimensions();
 
         queue.write_texture(
             wgpu::ImageCopyTexture {
@@ -60,7 +61,7 @@ impl Texture {
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
-            &self.rgba,
+            &rgba,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * width),

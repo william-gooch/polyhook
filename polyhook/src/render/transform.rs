@@ -26,6 +26,7 @@ pub struct Mvp {
     pub model: glam::Mat4,
     pub view: glam::Mat4,
     pub projection: glam::Mat4,
+    pub normal: glam::Mat4,
 }
 
 impl Mvp {
@@ -40,7 +41,14 @@ impl Mvp {
                 1.0,
                 Mvp::Z_NEAR,
             ),
+            normal: glam::Mat4::IDENTITY,
         }
+    }
+
+    pub fn update_model(&mut self, model: glam::Mat4) {
+        self.model = model;
+        let (_, rot, _) = model.to_scale_rotation_translation();
+        self.normal = glam::Mat4::from_quat(rot);
     }
 
     pub fn update_projection(&mut self, aspect_ratio: f32) {

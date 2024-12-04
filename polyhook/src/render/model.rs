@@ -14,11 +14,22 @@ use super::shader::BindGroups;
 pub struct Vertex {
     position: [f32; 4],
     uv: [f32; 2],
+    normal: [f32; 3],
+    tangent: [f32; 3],
+    bitangent: [f32; 3],
 }
 
 impl Vertex {
-    pub const fn new(position: [f32; 4], uv: [f32; 2]) -> Self {
-        Self { position, uv }
+    pub fn new(position: Vec3, uv: Vec2, normal: Vec3, tangent: Vec3) -> Self {
+        let bitangent = normal.cross(tangent).normalize();
+
+        Self {
+            position: [position.x, position.y, position.z, 1.0],
+            uv: [uv.x, uv.y],
+            normal: [normal.x, normal.y, normal.z],
+            tangent: [tangent.x, tangent.y, tangent.z],
+            bitangent: [bitangent.x, bitangent.y, bitangent.z],
+        }
     }
 
     pub const fn buffer_layout() -> wgpu::VertexBufferLayout<'static> {
@@ -36,14 +47,23 @@ impl Vertex {
                     offset: offset_of!(Vertex, uv) as u64,
                     shader_location: 1
                 },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: offset_of!(Vertex, normal) as u64,
+                    shader_location: 2
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: offset_of!(Vertex, tangent) as u64,
+                    shader_location: 3
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: offset_of!(Vertex, bitangent) as u64,
+                    shader_location: 4
+                },
             ],
         }
-    }
-}
-
-impl From<(Vec3, Vec2)> for Vertex {
-    fn from((pos, uv): (Vec3, Vec2)) -> Self {
-        Self::new([pos.x, pos.y, pos.z, 1.0], [uv.x, uv.y])
     }
 }
 
@@ -80,7 +100,7 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new(data: ModelData, device: &wgpu::Device, shader: &Shader, texture: &Texture) -> Self {
+    pub fn new(data: ModelData, device: &wgpu::Device, shader: &Shader, tex_diffuse: &Texture, tex_normal: &Texture) -> Self {
         use wgpu::util::DeviceExt;
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -101,7 +121,7 @@ impl Model {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM,
         });
 
-        let bind_groups = shader.init_bind_groups(device, &uniform_buffer, texture);
+        let bind_groups = shader.init_bind_groups(device, &uniform_buffer, tex_diffuse, tex_normal);
 
         let buffers = ModelBuffers {
             vertex: vertex_buffer,
