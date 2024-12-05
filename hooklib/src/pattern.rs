@@ -81,13 +81,13 @@ enum SkipDirection {
 }
 
 /// Gauge is the ratio of stitches in a given length to rows in a given length.
-const GAUGE: f32 = 15.0 / 18.5;
+pub const GAUGE: f32 = 15.0 / 18.5;
 
 impl From<EdgeType> for f32 {
     fn from(edge_type: EdgeType) -> Self {
         match edge_type {
             EdgeType::Previous => 1.0,
-            EdgeType::Insert => 1.0 / GAUGE,
+            EdgeType::Insert => GAUGE,
             EdgeType::Slip => 0.000001,
             EdgeType::Neighbour => 1.0,
         }
@@ -124,7 +124,7 @@ impl Pattern {
 
     pub fn triangulated_graph(&self) -> graph::DiGraph<(), f32> {
         let new_graph = self.graph.clone();
-        let diag_length = (1.0 + ((1.0 / GAUGE) * (1.0 / GAUGE))).sqrt();
+        let diag_length = (1.0 + (GAUGE * GAUGE)).sqrt();
 
         let diagonals = new_graph
             .edge_references()
@@ -165,18 +165,17 @@ impl Pattern {
                 let (start, end) = new_graph.edge_endpoints(ix).unwrap();
                 let start = *new_graph.node_weight(start).unwrap();
                 let end = *new_graph.node_weight(end).unwrap();
-                match edge {
+                let edge_length_type = match edge {
                     EdgeType::Previous => {
                         if start.stitch_type() == "ch" && end == Node::dc() {
-                            1.0
+                            EdgeType::Insert
                         } else {
-                            0.75
+                            EdgeType::Previous
                         }
-                    }
-                    EdgeType::Insert => 1.0,
-                    EdgeType::Slip => 0.000001,
-                    EdgeType::Neighbour => 1.0,
-                }
+                    },
+                    other => *other
+                };
+                edge_length_type.into()
             },
         );
 

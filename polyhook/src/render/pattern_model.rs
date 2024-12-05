@@ -1,6 +1,6 @@
 use crate::render::model::ModelData;
 use glam::{Vec2, Vec3};
-use hooklib::pattern::{EdgeType, Pattern};
+use hooklib::pattern::{EdgeType, Pattern, GAUGE};
 use petgraph::{graph::NodeIndex, visit::{Dfs, EdgeFiltered, EdgeRef, Reversed}, Direction::{Incoming, Outgoing}};
 use sgd::sgd;
 
@@ -21,18 +21,18 @@ fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32
         verts.extend([
             Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), normal, tangent),
             Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), normal, tangent),
-            Vertex::new(target_pos + offset_x, [0.0, 1.0].into(), normal, tangent),
-            Vertex::new(target_pos - offset_x, [1.0, 1.0].into(), normal, tangent),
+            Vertex::new(target_pos + offset_x, [0.0, 0.5].into(), normal, tangent),
+            Vertex::new(target_pos - offset_x, [1.0, 0.5].into(), normal, tangent),
         ].iter());
         tris.push([idx, idx + 1, idx + 2]);
         tris.push([idx + 2, idx + 3, idx]);
 
         let idx = verts.len() as u16;
         verts.extend([
-            Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), -normal, tangent),
-            Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), -normal, tangent),
-            Vertex::new(target_pos + offset_x, [0.0, 1.0].into(), -normal, tangent),
-            Vertex::new(target_pos - offset_x, [1.0, 1.0].into(), -normal, tangent),
+            Vertex::new(source_pos - offset_x, [0.0, 0.5].into(), -normal, tangent),
+            Vertex::new(source_pos + offset_x, [1.0, 0.5].into(), -normal, tangent),
+            Vertex::new(target_pos + offset_x, [1.0, 1.0].into(), -normal, tangent),
+            Vertex::new(target_pos - offset_x, [0.0, 1.0].into(), -normal, tangent),
         ].iter());
         tris.push([idx, idx + 2, idx + 1]);
         tris.push([idx + 3, idx + 2, idx]);
@@ -58,7 +58,7 @@ fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32
                         .unwrap_or(Vec3::X);
                     let tangent = (tangent_1 + tangent_2) / 2.0;
 
-                    create_rect(source_pos, target_pos, tangent, 0.85);
+                    create_rect(source_pos, target_pos, tangent, 1.0 / GAUGE);
                 }
             });
 

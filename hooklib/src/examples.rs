@@ -82,7 +82,7 @@ let ch_sp = chain_space(|| {
 
 new_row();
 into(ch_sp);
-5 # dc_;
+6 # dc_;
 
 4 @ |j| {
     new_row();
@@ -99,10 +99,10 @@ into(ch_sp);
     36 # dc;
 };
 
-4 @ |j| {
+5 @ |j| {
     new_row();
     6 # || {
-        (5-j) # dc;
+        (4-j) # dc;
         dec();
     };
 };
