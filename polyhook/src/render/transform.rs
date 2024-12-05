@@ -45,6 +45,7 @@ impl Mvp {
         }
     }
 
+    #[allow(unused)]
     pub fn update_model(&mut self, model: glam::Mat4) {
         self.model = model;
         let (_, rot, _) = model.to_scale_rotation_translation();

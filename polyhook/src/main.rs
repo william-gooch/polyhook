@@ -9,7 +9,7 @@ use render::pattern_model::{model_from_pattern, model_from_pattern_2d};
 use render::model::ModelData;
 use render::transform::Orbit;
 use parametric_view::ParametricView;
-use rfd::{FileDialog, MessageDialog, MessageDialogResult};
+use rfd::FileDialog;
 use std::env::args;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -126,7 +126,7 @@ impl App {
         .into();
         ctx.set_style(style);
 
-        let code = args().skip(1).next()
+        let code = args().nth(1)
             .and_then(|s| load_file(Path::new(&s)).inspect_err(|err| eprintln!("Couldn't open file: {}", err)).ok())
             .unwrap_or(EXAMPLE_FLAT.into());
 
@@ -176,6 +176,7 @@ impl eframe::App for App {
                                 let mut f = OpenOptions::new()
                                     .write(true)
                                     .create(true)
+                                    .truncate(true)
                                     .open(file.as_path())
                                     .inspect_err(|err| eprintln!("Couldn't open file: {err}"))
                                     .ok()?;

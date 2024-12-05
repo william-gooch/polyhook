@@ -1,8 +1,8 @@
 use crate::render::model::ModelData;
 use glam::{Vec2, Vec3};
 use hooklib::pattern::{EdgeType, Pattern};
-use petgraph::{graph::NodeIndex, visit::{Dfs, EdgeFiltered, EdgeRef, NodeRef, Reversed}, Direction::{self, Incoming, Outgoing}};
-use sgd::{sgd, SDGCoords};
+use petgraph::{graph::NodeIndex, visit::{Dfs, EdgeFiltered, EdgeRef, Reversed}, Direction::{Incoming, Outgoing}};
+use sgd::sgd;
 
 use super::Vertex;
 

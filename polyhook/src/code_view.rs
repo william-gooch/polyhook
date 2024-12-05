@@ -1,4 +1,3 @@
-use std::env::args;
 
 use egui::{Color32, TextStyle};
 use egui_extras::syntax_highlighting::{highlight, CodeTheme};
