@@ -26,6 +26,16 @@ fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32
         ].iter());
         tris.push([idx, idx + 1, idx + 2]);
         tris.push([idx + 2, idx + 3, idx]);
+
+        let idx = verts.len() as u16;
+        verts.extend([
+            Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), -normal, tangent),
+            Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), -normal, tangent),
+            Vertex::new(target_pos + offset_x, [0.0, 1.0].into(), -normal, tangent),
+            Vertex::new(target_pos - offset_x, [1.0, 1.0].into(), -normal, tangent),
+        ].iter());
+        tris.push([idx, idx + 2, idx + 1]);
+        tris.push([idx + 3, idx + 2, idx]);
     };
 
     let visit = EdgeFiltered::from_fn(&graph, |e| *e.weight().1 == EdgeType::Previous);

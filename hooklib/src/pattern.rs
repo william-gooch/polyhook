@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use petgraph::{
     graph::{self},
     visit::EdgeRef,
@@ -100,7 +101,9 @@ pub struct Pattern {
     prev: graph::NodeIndex,
     insert: Option<graph::NodeIndex>,
     current_ch_sp: Option<Vec<graph::NodeIndex>>,
+    rows: Vec<Vec<graph::NodeIndex>>,
     direction: SkipDirection,
+    ignore_for_row: bool,
 }
 
 impl PartialEq for Pattern {
@@ -194,10 +197,15 @@ impl Pattern {
         self.insert = Some(insert);
     }
 
+    pub fn insert(&self) -> Option<graph::NodeIndex> {
+        self.insert
+    }
+
     pub fn new() -> Self {
         let mut graph: Graph<Node, EdgeType> = Default::default();
         let start = graph.add_node(Node::chain());
         let prev = start;
+        let rows = vec![vec![start]];
 
         Self {
             graph,
@@ -205,7 +213,9 @@ impl Pattern {
             prev,
             insert: None,
             current_ch_sp: None,
+            rows,
             direction: Default::default(),
+            ignore_for_row: false,
         }
     }
 
@@ -247,32 +257,44 @@ impl Pattern {
         format!("digraph {{\n    normalize = 180\n{:?}}}", dot)
     }
 
+    pub fn new_row(&mut self) {
+        self.rows.push(vec![]);
+        self.set_insert(*self.rows[self.rows.len() - 2].first().unwrap());
+    }
+
     pub fn turn(&mut self) {
         self.turn_noskip();
         self.skip();
     }
 
     pub fn turn_noskip(&mut self) {
+        self.new_row();
         self.insert = Some(self.prev);
         self.direction = SkipDirection::Reverse;
         let new_node = self.graph.add_node(Node::turn());
         self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
+        self.rows.last_mut().unwrap().push(new_node);
         self.prev = new_node;
     }
 
     pub fn skip(&mut self) {
+        let insert_row = &self.rows[self.rows.len() - 2];
+        let curr_insert_idx = insert_row
+            .iter()
+            .find_position(|s| **s == self.insert.unwrap())
+            .unwrap().0;
         if self.direction == SkipDirection::Forward {
-            self.insert = self
-                .graph
-                .edges_directed(self.insert.unwrap(), Direction::Incoming)
-                .find(|e| *e.weight() == EdgeType::Previous)
-                .map(|e| e.source());
+            self.insert = if curr_insert_idx + 1 >= insert_row.len() {
+                None
+            } else {
+                Some(insert_row[curr_insert_idx + 1])
+            };
         } else {
-            self.insert = self
-                .graph
-                .edges_directed(self.insert.unwrap(), Direction::Outgoing)
-                .find(|e| *e.weight() == EdgeType::Previous)
-                .map(|e| e.target());
+            self.insert = if curr_insert_idx == 0 {
+                None
+            } else {
+                Some(insert_row[curr_insert_idx - 1])
+            }
         }
     }
 
@@ -284,6 +306,10 @@ impl Pattern {
         if let Some(ch_sp) = self.current_ch_sp.as_mut() {
             ch_sp.push(new_node);
         }
+
+        if !self.ignore_for_row {
+            self.rows.last_mut().unwrap().push(new_node);
+        }
     }
 
     pub fn dc(&mut self) {
@@ -294,6 +320,10 @@ impl Pattern {
         self.skip();
 
         self.prev = new_node;
+
+        if !self.ignore_for_row {
+            self.rows.last_mut().unwrap().push(new_node);
+        }
     }
 
     pub fn dc_noskip(&mut self) {
@@ -303,6 +333,10 @@ impl Pattern {
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
 
         self.prev = new_node;
+
+        if !self.ignore_for_row {
+            self.rows.last_mut().unwrap().push(new_node);
+        }
     }
 
     pub fn dec(&mut self) {
@@ -316,6 +350,10 @@ impl Pattern {
         self.skip();
 
         self.prev = new_node;
+
+        if !self.ignore_for_row {
+            self.rows.last_mut().unwrap().push(new_node);
+        }
     }
 
     pub fn inc(&mut self) {
@@ -349,6 +387,10 @@ impl Pattern {
 
         new_node
     }
+
+    pub fn set_ignore(&mut self, ignore: bool) {
+        self.ignore_for_row = ignore;
+    }
 }
 
 impl Default for Pattern {
@@ -367,19 +409,20 @@ pub fn test_pattern_spiral_rounds() -> Pattern {
     pattern.slip_stitch(start);
     let ch_sp = pattern.end_ch_sp();
 
+    pattern.new_row();
     pattern.set_insert(ch_sp);
-    let start = pattern.prev();
-    for _ in 1..=5 {
+    for _ in 1..=6 {
         pattern.dc_noskip();
     }
-    pattern.set_insert(start);
 
+    pattern.new_row();
     for _ in 1..=6 {
         pattern.dc_noskip();
         pattern.dc();
     }
 
     for j in 1..20 {
+        pattern.new_row();
         for _ in 1..=6 {
             for _ in 1..=j {
                 pattern.dc();
@@ -403,14 +446,14 @@ pub fn test_pattern_sphere() -> Pattern {
     pattern.slip_stitch(start);
     let ch_sp = pattern.end_ch_sp();
 
+    pattern.new_row();
     pattern.set_insert(ch_sp);
-    let start = pattern.prev();
-    for _ in 1..=5 {
+    for _ in 1..=6 {
         pattern.dc_noskip();
     }
-    pattern.set_insert(start);
 
     for j in 0..=4 {
+        pattern.new_row();
         for _ in 1..=6 {
             for _ in 1..=j {
                 pattern.dc_noskip();
@@ -422,12 +465,14 @@ pub fn test_pattern_sphere() -> Pattern {
     }
 
     for _ in 1..=7 {
+        pattern.new_row();
         for _ in 1..=36 {
             pattern.dc();
         }
     }
 
     for j in (0..=4).rev() {
+        pattern.new_row();
         for _ in 1..=6 {
             for _ in 1..=j {
                 pattern.dc();
@@ -436,6 +481,7 @@ pub fn test_pattern_sphere() -> Pattern {
         }
     }
 
+    pattern.new_row();
     pattern.dec();
     pattern.dec();
 

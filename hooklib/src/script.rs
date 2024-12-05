@@ -44,13 +44,19 @@ impl PatternScript {
                 })
                 .register_fn("turn", callback(pattern.clone(), Pattern::turn))
                 .register_fn("turn_", callback(pattern.clone(), Pattern::turn_noskip))
+                .register_fn("new_row", callback(pattern.clone(), Pattern::new_row))
                 .register_fn("chain", callback(pattern.clone(), Pattern::chain))
                 .register_fn("dc", callback(pattern.clone(), Pattern::dc))
                 .register_fn("dc_", callback(pattern.clone(), Pattern::dc_noskip))
                 .register_fn("dec", callback(pattern.clone(), Pattern::dec))
+                .register_fn("skip", callback(pattern.clone(), Pattern::skip))
                 .register_fn("mark", {
                     let pattern = pattern.clone();
                     move || pattern.read().unwrap().prev()
+                })
+                .register_fn("curr", {
+                    let pattern = pattern.clone();
+                    move || -> Result<_, Box<EvalAltResult>> { pattern.read().unwrap().insert().ok_or("No current insertion point".into()) }
                 })
                 .register_fn("ss", {
                     let pattern = pattern.clone();
@@ -67,6 +73,15 @@ impl PatternScript {
                         func.call_within_context::<()>(&ctx, ())?;
                         let ch_sp = { pattern.write().unwrap().end_ch_sp() };
                         Ok(ch_sp)
+                    }
+                })
+                .register_fn("ignore", {
+                    let pattern = pattern.clone();
+                    move |ctx: NativeCallContext, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
+                        { pattern.write().unwrap().set_ignore(true); }
+                        func.call_within_context::<()>(&ctx, ())?;
+                        { pattern.write().unwrap().set_ignore(false); }
+                        Ok(())
                     }
                 })
                 .on_var(|name, _index, ctx| {

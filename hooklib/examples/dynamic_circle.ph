@@ -10,11 +10,9 @@ let ch_sp = chain_space(|| {
 });
 
 into(ch_sp);
-chain();
-let start = mark();
-5 # dc_;
+6 # dc_;
 
-into(start);
+new_row();
 6 # || {
     inc();
 };
@@ -22,6 +20,8 @@ into(start);
 let round_size = 12.0;
 let round_target = 12.0;
 15 @ |j| {
+	new_row();
+	
 	round_target += 6.28 * (15.0 / 18.5);
 	let incs = floor(round_target - round_size).to_int();
 	let steps = floor(round_size / incs).to_int();

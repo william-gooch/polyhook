@@ -24,17 +24,18 @@ let ch_sp = chain_space(|| {
     ss(start);
 });
 
+new_row();
 into(ch_sp);
 chain();
-let start = mark();
-5 # dc_;
+6 # dc_;
 
-into(start);
+new_row();
 6 # || {
     inc();
 };
 
 20 @ |j| {
+    new_row();
     6 # || {
         j # dc;
         inc();
@@ -79,12 +80,12 @@ let ch_sp = chain_space(|| {
     ss(start);
 });
 
+new_row();
 into(ch_sp);
-let start = mark();
 5 # dc_;
-into(start);
 
 4 @ |j| {
+    new_row();
     6 # || {
         j # || {
             dc();
@@ -94,16 +95,19 @@ into(start);
 };
 
 7 # || {
+    new_row();
     36 # dc;
 };
 
 4 @ |j| {
+    new_row();
     6 # || {
         (5-j) # dc;
         dec();
     };
 };
 
+new_row();
 2 # dec;
 "#;
 

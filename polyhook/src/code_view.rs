@@ -9,7 +9,7 @@ pub struct CodeView {
 impl Default for CodeView {
     fn default() -> Self {
         Self {
-            code: examples::EXAMPLE_SPIRAL_ROUNDS.into(),
+            code: examples::EXAMPLE_FLAT.into(),
         }
     }
 }

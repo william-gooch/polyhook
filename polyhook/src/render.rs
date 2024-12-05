@@ -58,6 +58,7 @@ impl Renderer {
                 // topology: wgpu::PrimitiveTopology::LineList,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: Some(wgpu::Face::Front),
                 ..Default::default()
             },
             multisample: wgpu::MultisampleState::default(),
