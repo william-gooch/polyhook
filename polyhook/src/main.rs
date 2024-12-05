@@ -4,17 +4,30 @@ mod code_view;
 mod parametric_view;
 
 use egui::{Color32, Ui, Vec2};
-use hooklib::examples;
+use hooklib::examples::{self, EXAMPLE_FLAT};
 use render::pattern_model::{model_from_pattern, model_from_pattern_2d};
 use render::model::ModelData;
 use render::transform::Orbit;
 use parametric_view::ParametricView;
+use rfd::{FileDialog, MessageDialog, MessageDialogResult};
+use std::env::args;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use std::path::Path;
 use std::sync::Arc;
 
 use std::{
     error::Error,
     thread::{spawn, JoinHandle},
 };
+
+fn load_file(path: &Path) -> Result<String, String> {
+    let mut f = File::open(path).map_err(|err| err.to_string())?;
+    let mut s = String::new();
+    f.read_to_string(&mut s).map_err(|err| err.to_string())?;
+
+    Ok(s)
+}
 
 #[derive(Default)]
 struct RenderButton {
@@ -113,8 +126,12 @@ impl App {
         .into();
         ctx.set_style(style);
 
+        let code = args().skip(1).next()
+            .and_then(|s| load_file(Path::new(&s)).inspect_err(|err| eprintln!("Couldn't open file: {}", err)).ok())
+            .unwrap_or(EXAMPLE_FLAT.into());
+
         Self {
-            code_view: Default::default(),
+            code_view: code_view::CodeView { code },
             parametric_view: Default::default(),
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
             render_button: Default::default(),
@@ -132,6 +149,45 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Open").clicked() {
+                        let file = FileDialog::new()
+                            .add_filter("polyhook", &["ph"])
+                            .set_directory(".")
+                            .pick_file();
+                        file
+                            .and_then(|file| {
+                                load_file(file.as_path())
+                                    .inspect_err(|err| eprintln!("Couldn't load file: {err}"))
+                                    .ok()
+                            })
+                            .inspect(|code: &String| {
+                                self.code_view.load_code(code.as_str());
+                            });
+                        ui.close_menu();
+                    }
+                    if ui.button("Save").clicked() {
+                        let file = FileDialog::new()
+                            .add_filter("polyhook", &["ph"])
+                            .set_directory(".")
+                            .save_file();
+                        file
+                            .and_then(|file| {
+                                let mut f = OpenOptions::new()
+                                    .write(true)
+                                    .create(true)
+                                    .open(file.as_path())
+                                    .inspect_err(|err| eprintln!("Couldn't open file: {err}"))
+                                    .ok()?;
+                                let code = &self.code_view.code;
+                                f.write(code.as_bytes())
+                                    .inspect_err(|err| eprintln!("Couldn't write file: {err}"))
+                                    .ok()?;
+                                Some(())
+                            });
+                        ui.close_menu();
+                    }
+                });
                 ui.menu_button("Examples", |ui| {
                     for &(name, code) in examples::EXAMPLES {
                         if ui.button(name).clicked() {
@@ -139,7 +195,7 @@ impl eframe::App for App {
                             ui.close_menu();
                         }
                     }
-                })
+                });
             });
 
             egui::SidePanel::left("left_panel")
