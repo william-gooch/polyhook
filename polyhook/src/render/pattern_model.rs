@@ -12,10 +12,11 @@ fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32
 
     let mut create_rect = |source_pos: Vec3, target_pos: Vec3, tangent: Vec3, width: f32| {
         let dir = target_pos - source_pos;
-        let offset_len = dir.length() * width * 0.5;
-        let offset_x = tangent * offset_len;
+        let offset_len = width * 0.5;
 
         let normal = dir.cross(tangent).normalize();
+        let offset_x = normal.cross(dir).normalize() * offset_len;
+        // let offset_x = tangent.normalize() * offset_len;
 
         let idx = verts.len() as u16;
         verts.extend([
@@ -50,15 +51,19 @@ fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32
 
                     let tangent_1 = graph.edges_directed(node, Incoming)
                         .find(|e| *e.weight().1 == EdgeType::Previous)
-                        .map(|e| graph.node_weight(e.source()).unwrap().0 - source_pos)
+                        .map(|e| source_pos - graph.node_weight(e.source()).unwrap().0)
                         .unwrap_or(Vec3::X);
                     let tangent_2 = graph.edges_directed(node, Outgoing)
                         .find(|e| *e.weight().1 == EdgeType::Previous)
                         .map(|e| source_pos - graph.node_weight(e.target()).unwrap().0)
                         .unwrap_or(Vec3::X);
-                    let tangent = (tangent_1 + tangent_2) / 2.0;
+                    let tangent = if tangent_1.dot(tangent_2) <= 0.0 {
+                        (tangent_1 - tangent_2) / 2.0
+                    } else {
+                        (tangent_1 + tangent_2) / 2.0
+                    };
 
-                    create_rect(source_pos, target_pos, tangent, 1.0 / GAUGE);
+                    create_rect(source_pos, target_pos, tangent, tangent.length());
                 }
             });
 

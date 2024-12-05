@@ -11,6 +11,7 @@ pub trait SDGCoords:
 {
     fn random<R: Rng>(rng: &mut R) -> Self;
     fn length(self) -> f32;
+    fn is_nan(self) -> bool;
 }
 
 impl SDGCoords for Vec2 {
@@ -20,6 +21,10 @@ impl SDGCoords for Vec2 {
 
     fn length(self) -> f32 {
         Vec2::length(self)
+    }
+
+    fn is_nan(self) -> bool {
+        Vec2::is_nan(self)
     }
 }
 
@@ -34,6 +39,10 @@ impl SDGCoords for Vec3 {
 
     fn length(self) -> f32 {
         Vec3::length(self)
+    }
+
+    fn is_nan(self) -> bool {
+        Vec3::is_nan(self)
     }
 }
 
@@ -110,8 +119,8 @@ where
     for eta in etas {
         for term in terms.iter_mut() {
             let mu = f32::min(eta * term.w, 1.0); // limit the step size to at most 1.
-            let p_i = graph[term.start];
-            let p_j = graph[term.end];
+            let p_i: C = graph[term.start];
+            let p_j: C = graph[term.end];
 
             let d: C = p_i - p_j;
             let mag = d.length();
@@ -187,6 +196,7 @@ pub fn normalize(g: &mut Graph<Vec3, f32, Undirected>) {
                 e.source()
             }
         })
+        .unique()
         .map(|n| central_pos - g.node_weight(n).unwrap())
         .take(3)
         .next_tuple()

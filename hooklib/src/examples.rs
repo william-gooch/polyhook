@@ -84,10 +84,10 @@ new_row();
 into(ch_sp);
 6 # dc_;
 
-4 @ |j| {
+5 @ |j| {
     new_row();
     6 # || {
-        j # || {
+        (j-1) # || {
             dc();
         };
         inc();
@@ -102,7 +102,7 @@ into(ch_sp);
 5 @ |j| {
     new_row();
     6 # || {
-        (4-j) # dc;
+        (5-j) # dc;
         dec();
     };
 };
