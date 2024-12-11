@@ -221,7 +221,7 @@ mod tests {
     fn test_sgd() {
         let pattern = test_pattern_sphere();
 
-        let graph = sgd::<Vec3, _, _>(pattern.graph());
+        let graph = sgd::<Vec3, _, _>(&*pattern.graph());
 
         for w in graph.node_weights() {
             println!("{}", w);

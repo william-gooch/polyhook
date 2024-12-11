@@ -1,3 +1,6 @@
+use std::ops::{Deref, DerefMut};
+use std::sync::{Arc, RwLock};
+
 use itertools::Itertools;
 use petgraph::{
     graph::{self},
@@ -71,6 +74,7 @@ pub enum EdgeType {
     Insert,
     Slip,
     Neighbour,
+    Sew,
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug, Default)]
@@ -83,20 +87,30 @@ enum SkipDirection {
 /// Gauge is the ratio of stitches in a given length to rows in a given length.
 pub const GAUGE: f32 = 15.0 / 18.5;
 
+/// Epsilon is just a really small distance, used for stitches that should be really close together (e.g. slips and sews)
+pub const EPSILON: f32 = 0.000001;
+
 impl From<EdgeType> for f32 {
     fn from(edge_type: EdgeType) -> Self {
         match edge_type {
             EdgeType::Previous => 1.0,
             EdgeType::Insert => GAUGE,
-            EdgeType::Slip => 0.000001,
+            EdgeType::Slip => EPSILON,
             EdgeType::Neighbour => 1.0,
+            EdgeType::Sew => EPSILON,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct Pattern {
-    graph: graph::DiGraph<Node, EdgeType>,
+    graph: RwLock<graph::DiGraph<Node, EdgeType>>,
+}
+
+#[derive(Debug)]
+pub struct Part {
+    parent: Arc<Pattern>,
+
     start: graph::NodeIndex,
     prev: graph::NodeIndex,
     insert: Option<graph::NodeIndex>,
@@ -109,8 +123,8 @@ pub struct Pattern {
 impl PartialEq for Pattern {
     fn eq(&self, other: &Self) -> bool {
         petgraph::algo::is_isomorphic_matching(
-            self.graph(),
-            other.graph(),
+            &*self.graph.read().unwrap(),
+            &*other.graph.read().unwrap(),
             PartialEq::eq,
             PartialEq::eq,
         )
@@ -118,12 +132,41 @@ impl PartialEq for Pattern {
 }
 
 impl Pattern {
-    pub fn graph(&self) -> &graph::DiGraph<Node, EdgeType> {
-        &self.graph
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            graph: Default::default(),
+        })
+    }
+
+    pub fn into_inner(self: Arc<Self>) -> Self {
+        Arc::try_unwrap(self)
+            .inspect(|e| println!("Pattern still in use. Are there still parts you haven't finished?"))
+            .map_or_else(|s| Pattern { graph: s.graph.read().unwrap().clone().into() }, |r| r)
+    }
+
+    pub fn add_part(self: &Arc<Self>) -> Part {
+        Part::new_from_parent(self.clone())
+    }
+
+    pub fn sew(&self, row_1: Vec<graph::NodeIndex>, row_2: Vec<graph::NodeIndex>) -> Result<(), &str> {
+        if row_1.len() == row_2.len() {
+            let mut graph_mut = self.graph.write().unwrap();
+            row_1.into_iter().zip(row_2)
+                .for_each(|(node_1, node_2)| {
+                    graph_mut.add_edge(node_1, node_2, EdgeType::Sew);
+                });
+            Ok(())
+        } else {
+            Err("Rows to sew are not the same length")
+        }
+    }
+
+    pub fn graph(&self) -> impl Deref<Target = graph::DiGraph<Node, EdgeType>> + use<'_> {
+        self.graph.read().unwrap()
     }
 
     pub fn triangulated_graph(&self) -> graph::DiGraph<(), f32> {
-        let new_graph = self.graph.clone();
+        let new_graph = self.graph.read().unwrap().clone();
         let diag_length = (1.0 + (GAUGE * GAUGE)).sqrt();
 
         let diagonals = new_graph
@@ -184,6 +227,55 @@ impl Pattern {
         new_graph
     }
 
+    pub fn to_graphviz(&self) -> String {
+        use petgraph::dot::{Config, Dot};
+
+        let node_attr_getter = |_g, (id, n): (graph::NodeIndex, &Node)| {
+            let options = match n {
+                Node::Stitch { ty: "ch", .. } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
+                Node::Stitch { ty: "dc", .. } => {
+                    "shape = \"none\" label = \"+\" margin = \"0\" fontsize = 56.0"
+                }
+                _ => "shape = \"point\" label = \"\"",
+            };
+
+            options.to_owned()
+        };
+
+        let graph = self.graph.read().unwrap();
+        let dot = Dot::with_attr_getters(
+            &*graph,
+            &[
+                Config::EdgeNoLabel,
+                Config::NodeNoLabel,
+                Config::GraphContentOnly,
+            ],
+            &|_g, e| {
+                match e.weight() {
+                    EdgeType::Previous => "len = 1.0",
+                    EdgeType::Insert => r#"len = 1.0 style = "dotted" arrowhead="vee""#,
+                    EdgeType::Slip => "len = 1.0 style = \"dashed\"",
+                    EdgeType::Neighbour => "len = 1.0 style = \"invis\"",
+                    EdgeType::Sew => "len = 1.0 style = \"dashed\"",
+                }
+                .into()
+            },
+            &node_attr_getter,
+        );
+
+        format!("digraph {{\n    normalize = 180\n{:?}}}", dot)
+    }
+}
+
+impl Part {
+    fn graph(&self) -> impl Deref<Target = graph::DiGraph<Node, EdgeType>> + use<'_> {
+        self.parent.graph()
+    }
+
+    fn graph_mut(&self) -> impl Deref<Target = graph::DiGraph<Node, EdgeType>> + DerefMut + use<'_> {
+        self.parent.graph.write().unwrap()
+    }
+
     pub fn prev(&self) -> graph::NodeIndex {
         self.prev
     }
@@ -200,14 +292,13 @@ impl Pattern {
         self.insert
     }
 
-    pub fn new() -> Self {
-        let mut graph: Graph<Node, EdgeType> = Default::default();
-        let start = graph.add_node(Node::chain());
+    pub fn new_from_parent(parent: Arc<Pattern>) -> Self {
+        let start = parent.graph.write().unwrap().add_node(Node::chain());
         let prev = start;
         let rows = vec![vec![start]];
 
         Self {
-            graph,
+            parent,
             start,
             prev,
             insert: None,
@@ -216,44 +307,6 @@ impl Pattern {
             direction: Default::default(),
             ignore_for_row: false,
         }
-    }
-
-    pub fn to_graphviz(&self) -> String {
-        use petgraph::dot::{Config, Dot};
-
-        let node_attr_getter = |_g, (id, n): (graph::NodeIndex, &Node)| {
-            let options = match n {
-                Node::Stitch { ty: "ch", .. } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
-                Node::Stitch { ty: "dc", .. } => {
-                    "shape = \"none\" label = \"+\" margin = \"0\" fontsize = 56.0"
-                }
-                _ => "shape = \"point\" label = \"\"",
-            };
-            let style = if id == self.start { "filled" } else { "" };
-
-            format!("{options} style=\"{style}\"")
-        };
-
-        let dot = Dot::with_attr_getters(
-            self.graph(),
-            &[
-                Config::EdgeNoLabel,
-                Config::NodeNoLabel,
-                Config::GraphContentOnly,
-            ],
-            &|_g, e| {
-                match e.weight() {
-                    EdgeType::Previous => "len = 1.0",
-                    EdgeType::Insert => r#"len = 1.0 style = "dotted" arrowhead="vee""#,
-                    EdgeType::Slip => "len = 1.0 style = \"dashed\"",
-                    EdgeType::Neighbour => "len = 1.0 style = \"invis\"",
-                }
-                .into()
-            },
-            &node_attr_getter,
-        );
-
-        format!("digraph {{\n    normalize = 180\n{:?}}}", dot)
     }
 
     pub fn new_row(&mut self) {
@@ -270,8 +323,8 @@ impl Pattern {
         self.new_row();
         self.insert = Some(self.prev);
         self.direction = SkipDirection::Reverse;
-        let new_node = self.graph.add_node(Node::turn());
-        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
+        let new_node = self.graph_mut().add_node(Node::turn());
+        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
         self.rows.last_mut().unwrap().push(new_node);
         self.prev = new_node;
     }
@@ -298,8 +351,8 @@ impl Pattern {
     }
 
     pub fn chain(&mut self) {
-        let new_node = self.graph.add_node(Node::chain());
-        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
+        let new_node = self.graph_mut().add_node(Node::chain());
+        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
         self.prev = new_node;
 
         if let Some(ch_sp) = self.current_ch_sp.as_mut() {
@@ -312,9 +365,10 @@ impl Pattern {
     }
 
     pub fn dc(&mut self) {
-        let new_node = self.graph.add_node(Node::dc());
-        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
-        self.graph
+        let new_node = self.graph_mut().add_node(Node::dc());
+        self.graph_mut()
+            .add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph_mut()
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
 
@@ -326,9 +380,9 @@ impl Pattern {
     }
 
     pub fn dc_noskip(&mut self) {
-        let new_node = self.graph.add_node(Node::dc());
-        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
-        self.graph
+        let new_node = self.graph_mut().add_node(Node::dc());
+        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph_mut()
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
 
         self.prev = new_node;
@@ -339,12 +393,12 @@ impl Pattern {
     }
 
     pub fn dec(&mut self) {
-        let new_node = self.graph.add_node(Node::decrease());
-        self.graph.add_edge(new_node, self.prev, EdgeType::Previous);
-        self.graph
+        let new_node = self.graph_mut().add_node(Node::decrease());
+        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph_mut()
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
-        self.graph
+        self.graph_mut()
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
 
@@ -361,7 +415,7 @@ impl Pattern {
     }
 
     pub fn slip_stitch(&mut self, into: graph::NodeIndex) {
-        self.graph.add_edge(self.prev, into, EdgeType::Slip);
+        self.graph_mut().add_edge(self.prev, into, EdgeType::Slip);
     }
 
     pub fn start_ch_sp(&mut self) {
@@ -378,9 +432,9 @@ impl Pattern {
             .take()
             .expect("tried to end a chain space while none was started!");
 
-        let new_node = self.graph.add_node(Node::ch_sp());
+        let new_node = self.graph_mut().add_node(Node::ch_sp());
         ch_sp.into_iter().for_each(|neighbour| {
-            self.graph
+            self.graph_mut()
                 .add_edge(new_node, neighbour, EdgeType::Neighbour);
         });
 
@@ -392,150 +446,150 @@ impl Pattern {
     }
 }
 
-impl Default for Pattern {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub fn test_pattern_spiral_rounds() -> Pattern {
-    let mut pattern = Pattern::new();
-    pattern.start_ch_sp();
-    let start = pattern.prev();
+    let pattern = Pattern::new();
+    let mut part = pattern.add_part();
+
+    part.start_ch_sp();
+    let start = part.prev();
     for _ in 1..=2 {
-        pattern.chain();
+        part.chain();
     }
-    pattern.slip_stitch(start);
-    let ch_sp = pattern.end_ch_sp();
+    part.slip_stitch(start);
+    let ch_sp = part.end_ch_sp();
 
-    pattern.new_row();
-    pattern.set_insert(ch_sp);
+    part.new_row();
+    part.set_insert(ch_sp);
     for _ in 1..=6 {
-        pattern.dc_noskip();
+        part.dc_noskip();
     }
 
-    pattern.new_row();
+    part.new_row();
     for _ in 1..=6 {
-        pattern.dc_noskip();
-        pattern.dc();
+        part.dc_noskip();
+        part.dc();
     }
 
     for j in 1..20 {
-        pattern.new_row();
+        part.new_row();
         for _ in 1..=6 {
             for _ in 1..=j {
-                pattern.dc();
+                part.dc();
             }
-            pattern.dc_noskip();
-            pattern.dc();
+            part.dc_noskip();
+            part.dc();
         }
     }
 
-    pattern
+    pattern.into_inner()
 }
 
 pub fn test_pattern_sphere() -> Pattern {
-    let mut pattern = Pattern::new();
+    let pattern = Pattern::new();
+    let mut part = pattern.add_part();
 
-    pattern.start_ch_sp();
-    let start = pattern.prev();
+    part.start_ch_sp();
+    let start = part.prev();
     for _ in 1..=2 {
-        pattern.chain();
+        part.chain();
     }
-    pattern.slip_stitch(start);
-    let ch_sp = pattern.end_ch_sp();
+    part.slip_stitch(start);
+    let ch_sp = part.end_ch_sp();
 
-    pattern.new_row();
-    pattern.set_insert(ch_sp);
+    part.new_row();
+    part.set_insert(ch_sp);
     for _ in 1..=6 {
-        pattern.dc_noskip();
+        part.dc_noskip();
     }
 
     for j in 0..=4 {
-        pattern.new_row();
+        part.new_row();
         for _ in 1..=6 {
             for _ in 1..=j {
-                pattern.dc_noskip();
-                pattern.skip();
+                part.dc_noskip();
+                part.skip();
             }
-            pattern.dc_noskip();
-            pattern.dc();
+            part.dc_noskip();
+            part.dc();
         }
     }
 
     for _ in 1..=7 {
-        pattern.new_row();
+        part.new_row();
         for _ in 1..=36 {
-            pattern.dc();
+            part.dc();
         }
     }
 
     for j in (0..=4).rev() {
-        pattern.new_row();
+        part.new_row();
         for _ in 1..=6 {
             for _ in 1..=j {
-                pattern.dc();
+                part.dc();
             }
-            pattern.dec();
+            part.dec();
         }
     }
 
-    pattern.new_row();
-    pattern.dec();
-    pattern.dec();
+    part.new_row();
+    part.dec();
+    part.dec();
 
-    pattern
+    pattern.into_inner()
 }
 
 pub fn test_pattern_joined_rounds() -> Pattern {
-    let mut pattern = Pattern::new();
-    let start = pattern.prev();
-    for _ in 1..=5 {
-        pattern.chain();
-    }
-    pattern.slip_stitch(start);
+    let pattern = Pattern::new();
+    let mut part = pattern.add_part();
 
-    pattern.turn_noskip();
-    let start = pattern.prev();
-    pattern.dc();
+    let start = part.prev();
     for _ in 1..=5 {
-        pattern.inc();
+        part.chain();
     }
-    pattern.slip_stitch(start);
+    part.slip_stitch(start);
+
+    part.turn_noskip();
+    let start = part.prev();
+    part.dc();
+    for _ in 1..=5 {
+        part.inc();
+    }
+    part.slip_stitch(start);
 
     for round in 1..=20 {
-        pattern.turn();
-        let start = pattern.prev();
+        part.turn();
+        let start = part.prev();
         for _ in 1..=5 {
-            pattern.inc();
+            part.inc();
             for _ in 1..=round {
-                pattern.dc();
+                part.dc();
             }
         }
-        pattern.inc();
+        part.inc();
         for _ in 1..round {
-            pattern.dc();
+            part.dc();
         }
-        pattern.slip_stitch(start);
+        part.slip_stitch(start);
     }
 
-    pattern
+    pattern.into_inner()
 }
 
 pub fn test_pattern_flat(n: u32) -> Pattern {
-    let mut pattern = Pattern::new();
+    let pattern = Pattern::new();
+    let mut part = pattern.add_part();
     for _ in 1..=n {
-        pattern.chain();
+        part.chain();
     }
 
     for _ in 1..=n {
-        pattern.turn();
+        part.turn();
         for _ in 1..=n {
-            pattern.dc();
+            part.dc();
         }
     }
 
-    pattern
+    pattern.into_inner()
 }
 
 #[cfg(test)]

@@ -1,28 +1,29 @@
-use std::error::Error;
+use std::{error::Error, sync::{Weak, Arc, RwLock}};
 
 use rhai::{
-    Dynamic, Engine, EvalAltResult, FnPtr, Locked, NativeCallContext, RhaiNativeFunc, Shared,
+    Dynamic, Engine, EvalAltResult, FnPtr, NativeCallContext, RhaiNativeFunc
 };
 
-use crate::pattern::Pattern;
+use crate::pattern::{Part, Pattern};
 
 pub struct PatternScript;
 
 impl PatternScript {
     pub fn eval_script(script: &str) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
-        let pattern = Shared::new(Locked::new(Pattern::new()));
+        let pattern = Pattern::new();
+        let part = Arc::new(RwLock::new(pattern.add_part()));
 
         {
             let mut engine = Engine::new();
 
             fn callback<F>(
-                pattern: Shared<Locked<Pattern>>,
+                part: Arc<RwLock<Part>>,
                 func: F,
             ) -> impl RhaiNativeFunc<(), 0, false, (), false>
             where
-                F: Fn(&mut Pattern) + 'static + Send + Sync,
+                F: Fn(&mut Part) + 'static + Send + Sync,
             {
-                move || func(&mut pattern.write().unwrap())
+                move || func(&mut part.write().unwrap())
             }
 
             #[allow(deprecated)]
@@ -42,46 +43,66 @@ impl PatternScript {
                     }
                     Ok(())
                 })
-                .register_fn("turn", callback(pattern.clone(), Pattern::turn))
-                .register_fn("turn_", callback(pattern.clone(), Pattern::turn_noskip))
-                .register_fn("new_row", callback(pattern.clone(), Pattern::new_row))
-                .register_fn("chain", callback(pattern.clone(), Pattern::chain))
-                .register_fn("dc", callback(pattern.clone(), Pattern::dc))
-                .register_fn("dc_", callback(pattern.clone(), Pattern::dc_noskip))
-                .register_fn("dec", callback(pattern.clone(), Pattern::dec))
-                .register_fn("skip", callback(pattern.clone(), Pattern::skip))
-                .register_fn("mark", {
+                .register_fn("new_part", {
+                    let part = part.clone();
                     let pattern = pattern.clone();
-                    move || pattern.read().unwrap().prev()
+                    move || {
+                        (*part.write().unwrap()) = pattern.add_part();
+                    }
+                })
+                .register_fn("turn", callback(part.clone(),    Part::turn))
+                .register_fn("turn_", callback(part.clone(),   Part::turn_noskip))
+                .register_fn("new_row", callback(part.clone(), Part::new_row))
+                .register_fn("chain", callback(part.clone(),   Part::chain))
+                .register_fn("dc", callback(part.clone(),      Part::dc))
+                .register_fn("dc_", callback(part.clone(),     Part::dc_noskip))
+                .register_fn("dec", callback(part.clone(),     Part::dec))
+                .register_fn("skip", callback(part.clone(),    Part::skip))
+                .register_fn("mark", {
+                    let part = part.clone();
+                    move || part.read().unwrap().prev()
                 })
                 .register_fn("curr", {
-                    let pattern = pattern.clone();
-                    move || -> Result<_, Box<EvalAltResult>> { pattern.read().unwrap().insert().ok_or("No current insertion point".into()) }
+                    let part = part.clone();
+                    move || -> Result<_, Box<EvalAltResult>> { part.read().unwrap().insert().ok_or("No current insertion point".into()) }
                 })
                 .register_fn("ss", {
-                    let pattern = pattern.clone();
-                    move |into: petgraph::graph::NodeIndex| pattern.write().unwrap().slip_stitch(into)
+                    let part = part.clone();
+                    move |into: petgraph::graph::NodeIndex| part.write().unwrap().slip_stitch(into)
                 })
                 .register_fn("into", {
-                    let pattern = pattern.clone();
-                    move |into: petgraph::graph::NodeIndex| pattern.write().unwrap().set_insert(into)
+                    let part = part.clone();
+                    move |into: petgraph::graph::NodeIndex| part.write().unwrap().set_insert(into)
                 })
                 .register_fn("chain_space", {
-                    let pattern = pattern.clone();
+                    let part = part.clone();
                     move |ctx: NativeCallContext, func: FnPtr| -> Result<petgraph::graph::NodeIndex, Box<EvalAltResult>> {
-                        { pattern.write().unwrap().start_ch_sp(); }
+                        { part.write().unwrap().start_ch_sp(); }
                         func.call_within_context::<()>(&ctx, ())?;
-                        let ch_sp = { pattern.write().unwrap().end_ch_sp() };
+                        let ch_sp = { part.write().unwrap().end_ch_sp() };
                         Ok(ch_sp)
                     }
                 })
                 .register_fn("ignore", {
-                    let pattern = pattern.clone();
+                    let part = part.clone();
                     move |ctx: NativeCallContext, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
-                        { pattern.write().unwrap().set_ignore(true); }
+                        { part.write().unwrap().set_ignore(true); }
                         func.call_within_context::<()>(&ctx, ())?;
-                        { pattern.write().unwrap().set_ignore(false); }
+                        { part.write().unwrap().set_ignore(false); }
                         Ok(())
+                    }
+                })
+                .register_fn("sew", {
+                    let pattern = pattern.clone();
+                    move |row_1: rhai::Array, row_2: rhai::Array| -> Result<(), Box<EvalAltResult>> {
+                        let row_1: Vec<petgraph::graph::NodeIndex> = row_1.into_iter()
+                            .map(|d| d.try_cast().ok_or("Sew argument not a node index"))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let row_2: Vec<petgraph::graph::NodeIndex> = row_2.into_iter()
+                            .map(|d| d.try_cast().ok_or("Sew argument not a node index"))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        pattern.sew(row_1, row_2)
+                            .map_err(|err| err.into())
                     }
                 })
                 .on_var(|name, _index, ctx| {
@@ -97,10 +118,9 @@ impl PatternScript {
             engine.run(script)?
         }
 
-        Ok(Shared::try_unwrap(pattern)
-            .expect("pattern variable still in use?")
-            .into_inner()
-            .expect("couldn't get lock on RwLock"))
+        drop(part);
+
+        Ok(pattern.into_inner())
     }
 }
 
