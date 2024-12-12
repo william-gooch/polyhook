@@ -15,7 +15,11 @@ impl Texture {
         Self::from_image(device, &img, Some(label))
     }
 
-    pub fn from_image(device: &wgpu::Device, image: &image::DynamicImage, label: Option<&str>) -> Self {
+    pub fn from_image(
+        device: &wgpu::Device,
+        image: &image::DynamicImage,
+        label: Option<&str>,
+    ) -> Self {
         let rgba = image.to_rgba8();
         let (width, height) = image.dimensions();
 
@@ -47,11 +51,19 @@ impl Texture {
             ..Default::default()
         });
 
-        Self { texture, view, sampler, rgba: Some(rgba) }
+        Self {
+            texture,
+            view,
+            sampler,
+            rgba: Some(rgba),
+        }
     }
 
     pub fn write_image(&self, queue: &wgpu::Queue) {
-        let rgba = self.rgba.as_ref().expect("Attempted to write image of a non-image texture (depth?)");
+        let rgba = self
+            .rgba
+            .as_ref()
+            .expect("Attempted to write image of a non-image texture (depth?)");
         let (width, height) = rgba.dimensions();
 
         queue.write_texture(
@@ -71,7 +83,7 @@ impl Texture {
                 width,
                 height,
                 depth_or_array_layers: 1,
-            }
+            },
         );
     }
 }

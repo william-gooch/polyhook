@@ -51,7 +51,7 @@ impl Shader {
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true }
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         },
                         count: None,
                     },
@@ -67,7 +67,7 @@ impl Shader {
                         ty: wgpu::BindingType::Texture {
                             multisampled: false,
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true }
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         },
                         count: None,
                     },
@@ -92,10 +92,19 @@ impl Shader {
     }
 
     pub fn bind_group_layouts(&self) -> Vec<&wgpu::BindGroupLayout> {
-        vec![&self.uniform_bind_group_layout, &self.texture_bind_group_layout]
+        vec![
+            &self.uniform_bind_group_layout,
+            &self.texture_bind_group_layout,
+        ]
     }
 
-    pub fn init_bind_groups(&self, device: &wgpu::Device, uniform_buffer: &wgpu::Buffer, tex_diffuse: &Texture, tex_normal: &Texture) -> BindGroups{
+    pub fn init_bind_groups(
+        &self,
+        device: &wgpu::Device,
+        uniform_buffer: &wgpu::Buffer,
+        tex_diffuse: &Texture,
+        tex_normal: &Texture,
+    ) -> BindGroups {
         let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("uniform_bind_group"),
             layout: &self.uniform_bind_group_layout,
@@ -128,6 +137,9 @@ impl Shader {
             ],
         });
 
-        BindGroups { uniform: uniform_bind_group, texture: texture_bind_group }
+        BindGroups {
+            uniform: uniform_bind_group,
+            texture: texture_bind_group,
+        }
     }
 }

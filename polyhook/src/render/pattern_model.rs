@@ -1,12 +1,17 @@
 use crate::render::model::ModelData;
 use glam::{Vec2, Vec3};
-use hooklib::pattern::{EdgeType, Pattern, GAUGE};
-use petgraph::{graph::NodeIndex, visit::{Dfs, EdgeFiltered, EdgeRef, IntoNodeReferences, Reversed}, Direction::{Incoming, Outgoing}};
+use hooklib::pattern::{EdgeType, Pattern};
+use petgraph::{
+    visit::{EdgeRef, IntoNodeReferences},
+    Direction::{Incoming, Outgoing},
+};
 use sgd::sgd;
 
 use super::Vertex;
 
-fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32, &EdgeType)>) -> ModelData {
+fn model_from_graph(
+    graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32, &EdgeType)>,
+) -> ModelData {
     let mut verts: Vec<Vertex> = Vec::new();
     let mut tris: Vec<[u16; 3]> = Vec::new();
 
@@ -19,61 +24,69 @@ fn model_from_graph(graph: petgraph::Graph<(Vec3, &hooklib::pattern::Node), (f32
         // let offset_x = tangent.normalize() * offset_len;
 
         let idx = verts.len() as u16;
-        verts.extend([
-            Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), normal, tangent),
-            Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), normal, tangent),
-            Vertex::new(target_pos + offset_x, [0.0, 0.5].into(), normal, tangent),
-            Vertex::new(target_pos - offset_x, [1.0, 0.5].into(), normal, tangent),
-        ].iter());
+        verts.extend(
+            [
+                Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), normal, tangent),
+                Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), normal, tangent),
+                Vertex::new(target_pos + offset_x, [0.0, 0.5].into(), normal, tangent),
+                Vertex::new(target_pos - offset_x, [1.0, 0.5].into(), normal, tangent),
+            ]
+            .iter(),
+        );
         tris.push([idx, idx + 1, idx + 2]);
         tris.push([idx + 2, idx + 3, idx]);
 
         let idx = verts.len() as u16;
-        verts.extend([
-            Vertex::new(source_pos - offset_x, [0.0, 0.5].into(), -normal, tangent),
-            Vertex::new(source_pos + offset_x, [1.0, 0.5].into(), -normal, tangent),
-            Vertex::new(target_pos + offset_x, [1.0, 1.0].into(), -normal, tangent),
-            Vertex::new(target_pos - offset_x, [0.0, 1.0].into(), -normal, tangent),
-        ].iter());
+        verts.extend(
+            [
+                Vertex::new(source_pos - offset_x, [0.0, 0.5].into(), -normal, tangent),
+                Vertex::new(source_pos + offset_x, [1.0, 0.5].into(), -normal, tangent),
+                Vertex::new(target_pos + offset_x, [1.0, 1.0].into(), -normal, tangent),
+                Vertex::new(target_pos - offset_x, [0.0, 1.0].into(), -normal, tangent),
+            ]
+            .iter(),
+        );
         tris.push([idx, idx + 2, idx + 1]);
         tris.push([idx + 3, idx + 2, idx]);
     };
 
-    graph.node_references()
+    graph
+        .node_references()
         .for_each(|(node, (source_pos, node_type))| {
-            graph.edges_directed(node, Outgoing)
-                .for_each(|e| {
-                    if *e.weight().1 == EdgeType::Insert {
-                        let target_pos = graph.node_weight(e.target()).unwrap().0;
+            graph.edges_directed(node, Outgoing).for_each(|e| {
+                if *e.weight().1 == EdgeType::Insert {
+                    let target_pos = graph.node_weight(e.target()).unwrap().0;
 
-                        let tangent_1 = graph.edges_directed(node, Incoming)
-                            .find(|e| *e.weight().1 == EdgeType::Previous)
-                            .map(|e| source_pos - graph.node_weight(e.source()).unwrap().0)
-                            .unwrap_or(Vec3::X);
-                        let tangent_2 = graph.edges_directed(node, Outgoing)
-                            .find(|e| *e.weight().1 == EdgeType::Previous)
-                            .map(|e| source_pos - graph.node_weight(e.target()).unwrap().0)
-                            .unwrap_or(Vec3::X);
-                        let tangent = if tangent_1.dot(tangent_2) <= 0.0 {
-                            (tangent_1 - tangent_2) / 2.0
-                        } else {
-                            (tangent_1 + tangent_2) / 2.0
-                        };
+                    let tangent_1 = graph
+                        .edges_directed(node, Incoming)
+                        .find(|e| *e.weight().1 == EdgeType::Previous)
+                        .map(|e| source_pos - graph.node_weight(e.source()).unwrap().0)
+                        .unwrap_or(Vec3::X);
+                    let tangent_2 = graph
+                        .edges_directed(node, Outgoing)
+                        .find(|e| *e.weight().1 == EdgeType::Previous)
+                        .map(|e| source_pos - graph.node_weight(e.target()).unwrap().0)
+                        .unwrap_or(Vec3::X);
+                    let tangent = if tangent_1.dot(tangent_2) <= 0.0 {
+                        (tangent_1 - tangent_2) / 2.0
+                    } else {
+                        (tangent_1 + tangent_2) / 2.0
+                    };
 
-                        create_rect(*source_pos, target_pos, tangent, tangent.length());
-                    }
-                });
+                    create_rect(*source_pos, target_pos, tangent, tangent.length());
+                }
+            });
         });
 
-        // graph.edges_directed(node, Incoming)
-        //     .for_each(|e| {
-        //         if *e.weight().1 == EdgeType::Previous {
-        //             let source_pos = graph.node_weight(node).unwrap().0;
-        //             let target_pos = graph.node_weight(e.source()).unwrap().0;
+    // graph.edges_directed(node, Incoming)
+    //     .for_each(|e| {
+    //         if *e.weight().1 == EdgeType::Previous {
+    //             let source_pos = graph.node_weight(node).unwrap().0;
+    //             let target_pos = graph.node_weight(e.source()).unwrap().0;
 
-        //             create_rect(source_pos, target_pos, 0.6);
-        //         }
-        //     });
+    //             create_rect(source_pos, target_pos, 0.6);
+    //         }
+    //     });
 
     ModelData::new(
         // vertices: graph
@@ -95,11 +108,10 @@ pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
     sgd::normalize(&mut graph);
 
     let orig_graph = pattern.graph();
-    let graph = orig_graph
-        .map(
-            |ix, node| (graph.raw_nodes()[ix.index()].weight, node), 
-            |ix, edge| (graph.raw_edges()[ix.index()].weight, edge), 
-        );
+    let graph = orig_graph.map(
+        |ix, node| (graph.raw_nodes()[ix.index()].weight, node),
+        |ix, edge| (graph.raw_edges()[ix.index()].weight, edge),
+    );
 
     model_from_graph(graph)
 }
@@ -108,14 +120,13 @@ pub fn model_from_pattern_2d(pattern: &Pattern) -> ModelData {
     let graph = sgd::<Vec2, _, _>(&pattern.triangulated_graph());
 
     let orig_graph = pattern.graph();
-    let graph = orig_graph
-        .map(
-            |ix, node| {
-                let p = graph.raw_nodes()[ix.index()].weight;
-                ([p.x, p.y, 0.0].into(), node)
-            }, 
-            |ix, edge| (graph.raw_edges()[ix.index()].weight, edge), 
-        );
+    let graph = orig_graph.map(
+        |ix, node| {
+            let p = graph.raw_nodes()[ix.index()].weight;
+            ([p.x, p.y, 0.0].into(), node)
+        },
+        |ix, edge| (graph.raw_edges()[ix.index()].weight, edge),
+    );
 
     model_from_graph(graph)
 }

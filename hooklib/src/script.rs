@@ -1,8 +1,9 @@
-use std::{error::Error, sync::{Weak, Arc, RwLock}};
-
-use rhai::{
-    Dynamic, Engine, EvalAltResult, FnPtr, NativeCallContext, RhaiNativeFunc
+use std::{
+    error::Error,
+    sync::{Arc, RwLock},
 };
+
+use rhai::{Dynamic, Engine, EvalAltResult, FnPtr, NativeCallContext, RhaiNativeFunc};
 
 use crate::pattern::{Part, Pattern};
 

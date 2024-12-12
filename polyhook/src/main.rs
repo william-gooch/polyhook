@@ -5,10 +5,10 @@ mod parametric_view;
 
 use egui::{Color32, Ui, Vec2};
 use hooklib::examples::{self, EXAMPLE_FLAT};
-use render::pattern_model::{model_from_pattern, model_from_pattern_2d};
-use render::model::ModelData;
-use render::transform::Orbit;
 use parametric_view::ParametricView;
+use render::model::ModelData;
+use render::pattern_model::{model_from_pattern, model_from_pattern_2d};
+use render::transform::Orbit;
 use rfd::FileDialog;
 use std::env::args;
 use std::fs::{File, OpenOptions};
@@ -126,8 +126,13 @@ impl App {
         .into();
         ctx.set_style(style);
 
-        let code = args().nth(1)
-            .and_then(|s| load_file(Path::new(&s)).inspect_err(|err| eprintln!("Couldn't open file: {}", err)).ok())
+        let code = args()
+            .nth(1)
+            .and_then(|s| {
+                load_file(Path::new(&s))
+                    .inspect_err(|err| eprintln!("Couldn't open file: {}", err))
+                    .ok()
+            })
             .unwrap_or(EXAMPLE_FLAT.into());
 
         Self {
@@ -155,15 +160,14 @@ impl eframe::App for App {
                             .add_filter("polyhook", &["ph"])
                             .set_directory(".")
                             .pick_file();
-                        file
-                            .and_then(|file| {
-                                load_file(file.as_path())
-                                    .inspect_err(|err| eprintln!("Couldn't load file: {err}"))
-                                    .ok()
-                            })
-                            .inspect(|code: &String| {
-                                self.code_view.load_code(code.as_str());
-                            });
+                        file.and_then(|file| {
+                            load_file(file.as_path())
+                                .inspect_err(|err| eprintln!("Couldn't load file: {err}"))
+                                .ok()
+                        })
+                        .inspect(|code: &String| {
+                            self.code_view.load_code(code.as_str());
+                        });
                         ui.close_menu();
                     }
                     if ui.button("Save").clicked() {
@@ -171,21 +175,20 @@ impl eframe::App for App {
                             .add_filter("polyhook", &["ph"])
                             .set_directory(".")
                             .save_file();
-                        file
-                            .and_then(|file| {
-                                let mut f = OpenOptions::new()
-                                    .write(true)
-                                    .create(true)
-                                    .truncate(true)
-                                    .open(file.as_path())
-                                    .inspect_err(|err| eprintln!("Couldn't open file: {err}"))
-                                    .ok()?;
-                                let code = &self.code_view.code;
-                                f.write(code.as_bytes())
-                                    .inspect_err(|err| eprintln!("Couldn't write file: {err}"))
-                                    .ok()?;
-                                Some(())
-                            });
+                        file.and_then(|file| {
+                            let mut f = OpenOptions::new()
+                                .write(true)
+                                .create(true)
+                                .truncate(true)
+                                .open(file.as_path())
+                                .inspect_err(|err| eprintln!("Couldn't open file: {err}"))
+                                .ok()?;
+                            let code = &self.code_view.code;
+                            f.write(code.as_bytes())
+                                .inspect_err(|err| eprintln!("Couldn't write file: {err}"))
+                                .ok()?;
+                            Some(())
+                        });
                         ui.close_menu();
                     }
                 });

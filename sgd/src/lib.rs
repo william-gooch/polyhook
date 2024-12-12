@@ -1,7 +1,10 @@
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4Swizzles};
 use itertools::Itertools;
 use petgraph::{
-    algo::dijkstra, graph::NodeIndex, visit::{EdgeRef, IntoNodeReferences}, Graph, Undirected
+    algo::dijkstra,
+    graph::NodeIndex,
+    visit::{EdgeRef, IntoNodeReferences},
+    Graph, Undirected,
 };
 use rand::prelude::*;
 use std::ops::{Add, Mul, Sub};

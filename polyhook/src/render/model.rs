@@ -45,22 +45,22 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x2,
                     offset: offset_of!(Vertex, uv) as u64,
-                    shader_location: 1
+                    shader_location: 1,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
                     offset: offset_of!(Vertex, normal) as u64,
-                    shader_location: 2
+                    shader_location: 2,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
                     offset: offset_of!(Vertex, tangent) as u64,
-                    shader_location: 3
+                    shader_location: 3,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
                     offset: offset_of!(Vertex, bitangent) as u64,
-                    shader_location: 4
+                    shader_location: 4,
                 },
             ],
         }
@@ -79,10 +79,7 @@ impl ModelData {
     }
 
     pub fn new(vertices: Vec<Vertex>, indices: Vec<u16>) -> Self {
-        Self {
-            vertices,
-            indices,
-        }
+        Self { vertices, indices }
     }
 }
 
@@ -100,7 +97,13 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new(data: ModelData, device: &wgpu::Device, shader: &Shader, tex_diffuse: &Texture, tex_normal: &Texture) -> Self {
+    pub fn new(
+        data: ModelData,
+        device: &wgpu::Device,
+        shader: &Shader,
+        tex_diffuse: &Texture,
+        tex_normal: &Texture,
+    ) -> Self {
         use wgpu::util::DeviceExt;
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

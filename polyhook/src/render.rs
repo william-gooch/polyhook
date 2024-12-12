@@ -1,11 +1,11 @@
 pub mod model;
 pub mod pattern_model;
 pub mod shader;
-pub mod transform;
 pub mod texture;
+pub mod transform;
 
-use pattern_model::model_from_pattern;
 use model::{Model, ModelData, Vertex};
+use pattern_model::model_from_pattern;
 use shader::Shader;
 use texture::Texture;
 use transform::Mvp;
@@ -74,13 +74,24 @@ impl Renderer {
         let normal_bytes = include_bytes!("../assets/dc_normal.png");
         let tex_normal = Texture::from_bytes(device, normal_bytes, "dc_normal");
 
-        let model = Model::new(model_from_pattern(&pattern), device, &shader, &tex_diffuse, &tex_normal);
+        let model = Model::new(
+            model_from_pattern(&pattern),
+            device,
+            &shader,
+            &tex_diffuse,
+            &tex_normal,
+        );
 
         wgpu_render_state
             .renderer
             .write()
             .callback_resources
-            .insert(RendererResources { pipeline, model, tex_diffuse, tex_normal });
+            .insert(RendererResources {
+                pipeline,
+                model,
+                tex_diffuse,
+                tex_normal,
+            });
 
         Some(Self {
             mvp: Mvp::new(),

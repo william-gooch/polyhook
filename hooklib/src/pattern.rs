@@ -5,7 +5,7 @@ use itertools::Itertools;
 use petgraph::{
     graph::{self},
     visit::EdgeRef,
-    Direction, Graph,
+    Direction,
 };
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -88,7 +88,7 @@ enum SkipDirection {
 pub const GAUGE: f32 = 15.0 / 18.5;
 
 /// Epsilon is just a really small distance, used for stitches that should be really close together (e.g. slips and sews)
-pub const EPSILON: f32 = 0.000001;
+pub const EPSILON: f32 = 0.001;
 
 impl From<EdgeType> for f32 {
     fn from(edge_type: EdgeType) -> Self {
@@ -140,21 +140,28 @@ impl Pattern {
 
     pub fn into_inner(self: Arc<Self>) -> Self {
         Arc::try_unwrap(self)
-            .inspect(|e| println!("Pattern still in use. Are there still parts you haven't finished?"))
-            .map_or_else(|s| Pattern { graph: s.graph.read().unwrap().clone().into() }, |r| r)
+            .inspect(|e| {
+                println!("Pattern still in use. Are there still parts you haven't finished?")
+            })
+            .unwrap_or_else(|s| Pattern {
+                graph: s.graph.read().unwrap().clone().into(),
+            })
     }
 
     pub fn add_part(self: &Arc<Self>) -> Part {
         Part::new_from_parent(self.clone())
     }
 
-    pub fn sew(&self, row_1: Vec<graph::NodeIndex>, row_2: Vec<graph::NodeIndex>) -> Result<(), &str> {
+    pub fn sew(
+        &self,
+        row_1: Vec<graph::NodeIndex>,
+        row_2: Vec<graph::NodeIndex>,
+    ) -> Result<(), &str> {
         if row_1.len() == row_2.len() {
             let mut graph_mut = self.graph.write().unwrap();
-            row_1.into_iter().zip(row_2)
-                .for_each(|(node_1, node_2)| {
-                    graph_mut.add_edge(node_1, node_2, EdgeType::Sew);
-                });
+            row_1.into_iter().zip(row_2).for_each(|(node_1, node_2)| {
+                graph_mut.add_edge(node_1, node_2, EdgeType::Sew);
+            });
             Ok(())
         } else {
             Err("Rows to sew are not the same length")
@@ -215,8 +222,8 @@ impl Pattern {
                         } else {
                             EdgeType::Previous
                         }
-                    },
-                    other => *other
+                    }
+                    other => *other,
                 };
                 edge_length_type.into()
             },
@@ -272,7 +279,7 @@ impl Part {
         self.parent.graph()
     }
 
-    fn graph_mut(&self) -> impl Deref<Target = graph::DiGraph<Node, EdgeType>> + DerefMut + use<'_> {
+    fn graph_mut(&self) -> impl DerefMut<Target = graph::DiGraph<Node, EdgeType>> + use<'_> {
         self.parent.graph.write().unwrap()
     }
 
@@ -324,7 +331,8 @@ impl Part {
         self.insert = Some(self.prev);
         self.direction = SkipDirection::Reverse;
         let new_node = self.graph_mut().add_node(Node::turn());
-        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph_mut()
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.rows.last_mut().unwrap().push(new_node);
         self.prev = new_node;
     }
@@ -334,7 +342,8 @@ impl Part {
         let curr_insert_idx = insert_row
             .iter()
             .find_position(|s| **s == self.insert.unwrap())
-            .unwrap().0;
+            .unwrap()
+            .0;
         if self.direction == SkipDirection::Forward {
             self.insert = if curr_insert_idx + 1 >= insert_row.len() {
                 None
@@ -352,7 +361,8 @@ impl Part {
 
     pub fn chain(&mut self) {
         let new_node = self.graph_mut().add_node(Node::chain());
-        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph_mut()
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.prev = new_node;
 
         if let Some(ch_sp) = self.current_ch_sp.as_mut() {
@@ -381,7 +391,8 @@ impl Part {
 
     pub fn dc_noskip(&mut self) {
         let new_node = self.graph_mut().add_node(Node::dc());
-        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph_mut()
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph_mut()
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
 
@@ -394,7 +405,8 @@ impl Part {
 
     pub fn dec(&mut self) {
         let new_node = self.graph_mut().add_node(Node::decrease());
-        self.graph_mut().add_edge(new_node, self.prev, EdgeType::Previous);
+        self.graph_mut()
+            .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph_mut()
             .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
         self.skip();
