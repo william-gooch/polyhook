@@ -26,7 +26,7 @@ impl CodeView {
             .rounding(ui.visuals().window_rounding)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
-                    .max_height(ui.available_height() - 50.0)
+                    .max_height(ui.available_height() - 100.0)
                     .show(ui, |ui| {
                         let code_rows = if self.code.ends_with('\n') || self.code.is_empty() {
                             self.code.lines().count() + 1

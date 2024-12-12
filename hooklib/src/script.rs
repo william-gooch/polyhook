@@ -5,7 +5,7 @@ use std::{
 
 use rhai::{Dynamic, Engine, EvalAltResult, FnPtr, NativeCallContext, RhaiNativeFunc};
 
-use crate::pattern::{Part, Pattern};
+use crate::pattern::{Part, Pattern, PatternError};
 
 pub struct PatternScript;
 
@@ -27,6 +27,17 @@ impl PatternScript {
                 move || func(&mut part.write().unwrap())
             }
 
+            fn callback_fallible<F, R>(
+                part: Arc<RwLock<Part>>,
+                func: F,
+            ) -> impl RhaiNativeFunc<(), 0, false, R, true>
+            where
+                F: Fn(&mut Part) -> Result<R, PatternError> + 'static + Send + Sync,
+                R: Clone + Send + Sync + 'static,
+            {
+                move || func(&mut part.write().unwrap()).map_err(|err| format!("{err}").into())
+            }
+
             #[allow(deprecated)]
             engine
                 .register_custom_operator("#", 160).unwrap()
@@ -34,13 +45,13 @@ impl PatternScript {
                 .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark")
                 .register_fn("#", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
                     for _ in 1..=times {
-                        func.call_within_context::<()>(&ctx, ())?;
+                        func.call_within_context::<Dynamic>(&ctx, ())?;
                     }
                     Ok(())
                 })
                 .register_fn("@", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
                     for i in 1..=times {
-                        func.call_within_context::<()>(&ctx, (i,))?;
+                        func.call_within_context::<Dynamic>(&ctx, (i,))?;
                     }
                     Ok(())
                 })
@@ -51,14 +62,15 @@ impl PatternScript {
                         (*part.write().unwrap()) = pattern.add_part();
                     }
                 })
-                .register_fn("turn", callback(part.clone(),    Part::turn))
-                .register_fn("turn_", callback(part.clone(),   Part::turn_noskip))
-                .register_fn("new_row", callback(part.clone(), Part::new_row))
-                .register_fn("chain", callback(part.clone(),   Part::chain))
-                .register_fn("dc", callback(part.clone(),      Part::dc))
-                .register_fn("dc_", callback(part.clone(),     Part::dc_noskip))
-                .register_fn("dec", callback(part.clone(),     Part::dec))
-                .register_fn("skip", callback(part.clone(),    Part::skip))
+                .register_fn("turn", callback_fallible(part.clone(),    Part::turn))
+                .register_fn("turn_", callback_fallible(part.clone(),   Part::turn_noskip))
+                .register_fn("new_row", callback_fallible(part.clone(), Part::new_row))
+                .register_fn("chain", callback_fallible(part.clone(),   Part::chain))
+                .register_fn("dc", callback_fallible(part.clone(),      Part::dc))
+                .register_fn("dc_", callback_fallible(part.clone(),     Part::dc_noskip))
+                .register_fn("dec", callback_fallible(part.clone(),     Part::dec))
+                .register_fn("skip", callback_fallible(part.clone(),    Part::skip))
+                .register_fn("magic_ring", callback(part.clone(),    Part::magic_ring))
                 .register_fn("mark", {
                     let part = part.clone();
                     move || part.read().unwrap().prev()
@@ -78,9 +90,9 @@ impl PatternScript {
                 .register_fn("chain_space", {
                     let part = part.clone();
                     move |ctx: NativeCallContext, func: FnPtr| -> Result<petgraph::graph::NodeIndex, Box<EvalAltResult>> {
-                        { part.write().unwrap().start_ch_sp(); }
+                        part.write().unwrap().start_ch_sp().map_err(|err| -> Box<EvalAltResult> { format!("{err}").into() })?;
                         func.call_within_context::<()>(&ctx, ())?;
-                        let ch_sp = { part.write().unwrap().end_ch_sp() };
+                        let ch_sp = part.write().unwrap().end_ch_sp().map_err(|err| -> Box<EvalAltResult> { format!("{err}").into() })?;
                         Ok(ch_sp)
                     }
                 })
@@ -103,7 +115,7 @@ impl PatternScript {
                             .map(|d| d.try_cast().ok_or("Sew argument not a node index"))
                             .collect::<Result<Vec<_>, _>>()?;
                         pattern.sew(row_1, row_2)
-                            .map_err(|err| err.into())
+                            .map_err(|err| format!("{err}").into())
                     }
                 })
                 .on_var(|name, _index, ctx| {
@@ -142,6 +154,6 @@ mod tests {
         )
         .expect("Error in evaluating script");
 
-        assert_eq!(pattern, crate::pattern::test_pattern_flat(15));
+        assert_eq!(pattern, crate::pattern::test_pattern_flat(15).unwrap());
     }
 }

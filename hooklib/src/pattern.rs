@@ -1,17 +1,45 @@
+use std::error::Error;
+use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, RwLock};
 
 use itertools::Itertools;
 use petgraph::{
-    graph::{self},
+    graph::{self, NodeIndex},
     visit::EdgeRef,
     Direction,
 };
+
+#[derive(Debug)]
+pub enum PatternError {
+    EndOfRow,
+    NoInsert,
+    NoRows,
+    SewInvalidLengths,
+    NestedChainSpace,
+    NoChainSpace,
+}
+
+impl Display for PatternError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EndOfRow => write!(f, "Reached end of row when trying to skip. Make sure to use `new_row()` before each row."),
+            Self::NoInsert => write!(f, "No insert set. Make sure to use `into()` for magic rings or chain spaces."),
+            Self::NoRows => write!(f, "No rows created. Make sure to use `new_row()` before each row."),
+            Self::SewInvalidLengths => write!(f, "Rows to sew are not the same length."),
+            Self::NestedChainSpace => write!(f, "Tried to start a chain space when one was already started."),
+            Self::NoChainSpace => write!(f, "Tried to end a chain space when none was started."),
+        }
+    }
+}
+
+impl Error for PatternError {}
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Node {
     Stitch { ty: &'static str, turn: bool },
     ChainSpace,
+    MagicRing,
 }
 
 impl Node {
@@ -50,7 +78,7 @@ impl Node {
     fn is_turn(&self) -> bool {
         match self {
             Node::Stitch { turn, .. } => *turn,
-            Node::ChainSpace => false,
+            _ => false,
         }
     }
 
@@ -58,6 +86,7 @@ impl Node {
         match self {
             Node::Stitch { ty, .. } => ty,
             Node::ChainSpace => "ch_sp",
+            Node::MagicRing => "magic_ring",
         }
     }
 }
@@ -139,13 +168,9 @@ impl Pattern {
     }
 
     pub fn into_inner(self: Arc<Self>) -> Self {
-        Arc::try_unwrap(self)
-            .inspect(|e| {
-                println!("Pattern still in use. Are there still parts you haven't finished?")
-            })
-            .unwrap_or_else(|s| Pattern {
-                graph: s.graph.read().unwrap().clone().into(),
-            })
+        Arc::try_unwrap(self).unwrap_or_else(|s| Pattern {
+            graph: s.graph.read().unwrap().clone().into(),
+        })
     }
 
     pub fn add_part(self: &Arc<Self>) -> Part {
@@ -156,7 +181,7 @@ impl Pattern {
         &self,
         row_1: Vec<graph::NodeIndex>,
         row_2: Vec<graph::NodeIndex>,
-    ) -> Result<(), &str> {
+    ) -> Result<(), PatternError> {
         if row_1.len() == row_2.len() {
             let mut graph_mut = self.graph.write().unwrap();
             row_1.into_iter().zip(row_2).for_each(|(node_1, node_2)| {
@@ -164,7 +189,7 @@ impl Pattern {
             });
             Ok(())
         } else {
-            Err("Rows to sew are not the same length")
+            Err(PatternError::SewInvalidLengths)
         }
     }
 
@@ -237,7 +262,7 @@ impl Pattern {
     pub fn to_graphviz(&self) -> String {
         use petgraph::dot::{Config, Dot};
 
-        let node_attr_getter = |_g, (id, n): (graph::NodeIndex, &Node)| {
+        let node_attr_getter = |_g, (_, n): (graph::NodeIndex, &Node)| {
             let options = match n {
                 Node::Stitch { ty: "ch", .. } => "shape = \"ellipse\" scale = 0.5 label = \"\"",
                 Node::Stitch { ty: "dc", .. } => {
@@ -249,7 +274,7 @@ impl Pattern {
             options.to_owned()
         };
 
-        let graph = self.graph.read().unwrap();
+        let graph = self.graph();
         let dot = Dot::with_attr_getters(
             &*graph,
             &[
@@ -316,50 +341,67 @@ impl Part {
         }
     }
 
-    pub fn new_row(&mut self) {
+    pub fn magic_ring(&mut self) {
+        self.graph_mut().remove_node(self.start);
+        let new_start = self.graph_mut().add_node(Node::MagicRing);
+        self.start = new_start;
+        self.prev = new_start;
+    }
+
+    pub fn new_row(&mut self) -> Result<(), PatternError> {
         self.rows.push(vec![]);
-        self.set_insert(*self.rows[self.rows.len() - 2].first().unwrap());
+        self.set_insert(
+            *self.rows[self.rows.len().checked_sub(2).ok_or(PatternError::NoRows)?]
+                .first()
+                .ok_or(PatternError::EndOfRow)?,
+        );
+
+        Ok(())
     }
 
-    pub fn turn(&mut self) {
-        self.turn_noskip();
-        self.skip();
+    pub fn turn(&mut self) -> Result<(), PatternError> {
+        self.turn_noskip()?;
+        self.skip()?;
+
+        Ok(())
     }
 
-    pub fn turn_noskip(&mut self) {
-        self.new_row();
+    pub fn turn_noskip(&mut self) -> Result<(), PatternError> {
+        self.new_row()?;
         self.insert = Some(self.prev);
         self.direction = SkipDirection::Reverse;
         let new_node = self.graph_mut().add_node(Node::turn());
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
-        self.rows.last_mut().unwrap().push(new_node);
+        self.rows
+            .last_mut()
+            .ok_or(PatternError::NoRows)?
+            .push(new_node);
         self.prev = new_node;
+
+        Ok(())
     }
 
-    pub fn skip(&mut self) {
-        let insert_row = &self.rows[self.rows.len() - 2];
+    pub fn skip(&mut self) -> Result<(), PatternError> {
+        let insert_row = &self.rows[self.rows.len().checked_sub(2).ok_or(PatternError::NoRows)?];
+        let insert = self.insert.ok_or(PatternError::NoInsert)?;
         let curr_insert_idx = insert_row
             .iter()
-            .find_position(|s| **s == self.insert.unwrap())
-            .unwrap()
+            .find_position(|s| **s == insert)
+            .ok_or(PatternError::EndOfRow)?
             .0;
         if self.direction == SkipDirection::Forward {
-            self.insert = if curr_insert_idx + 1 >= insert_row.len() {
-                None
-            } else {
-                Some(insert_row[curr_insert_idx + 1])
-            };
+            self.insert = insert_row.get(curr_insert_idx + 1).copied();
         } else {
-            self.insert = if curr_insert_idx == 0 {
-                None
-            } else {
-                Some(insert_row[curr_insert_idx - 1])
-            }
+            self.insert = curr_insert_idx
+                .checked_sub(1)
+                .and_then(|i| insert_row.get(i).copied())
         }
+
+        Ok(())
     }
 
-    pub fn chain(&mut self) {
+    pub fn chain(&mut self) -> Result<NodeIndex, PatternError> {
         let new_node = self.graph_mut().add_node(Node::chain());
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
@@ -370,26 +412,22 @@ impl Part {
         }
 
         if !self.ignore_for_row {
-            self.rows.last_mut().unwrap().push(new_node);
+            self.rows
+                .last_mut()
+                .ok_or(PatternError::NoRows)?
+                .push(new_node);
         }
+
+        Ok(new_node)
     }
 
-    pub fn dc(&mut self) {
-        let new_node = self.graph_mut().add_node(Node::dc());
-        self.graph_mut()
-            .add_edge(new_node, self.prev, EdgeType::Previous);
-        self.graph_mut()
-            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
-        self.skip();
-
-        self.prev = new_node;
-
-        if !self.ignore_for_row {
-            self.rows.last_mut().unwrap().push(new_node);
-        }
+    pub fn dc(&mut self) -> Result<NodeIndex, PatternError> {
+        let new_node = self.dc_noskip()?;
+        self.skip()?;
+        Ok(new_node)
     }
 
-    pub fn dc_noskip(&mut self) {
+    pub fn dc_noskip(&mut self) -> Result<NodeIndex, PatternError> {
         let new_node = self.graph_mut().add_node(Node::dc());
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
@@ -399,50 +437,64 @@ impl Part {
         self.prev = new_node;
 
         if !self.ignore_for_row {
-            self.rows.last_mut().unwrap().push(new_node);
+            self.rows
+                .last_mut()
+                .ok_or(PatternError::NoRows)?
+                .push(new_node);
         }
+
+        Ok(new_node)
     }
 
-    pub fn dec(&mut self) {
+    pub fn dec(&mut self) -> Result<NodeIndex, PatternError> {
         let new_node = self.graph_mut().add_node(Node::decrease());
+        let insert = self.insert.ok_or(PatternError::NoInsert)?;
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph_mut()
-            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
-        self.skip();
+            .add_edge(new_node, insert, EdgeType::Insert);
+        self.skip()?;
         self.graph_mut()
-            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
-        self.skip();
+            .add_edge(new_node, insert, EdgeType::Insert);
+        self.skip()?;
 
         self.prev = new_node;
 
         if !self.ignore_for_row {
-            self.rows.last_mut().unwrap().push(new_node);
+            self.rows
+                .last_mut()
+                .ok_or(PatternError::NoRows)?
+                .push(new_node);
         }
+
+        Ok(new_node)
     }
 
-    pub fn inc(&mut self) {
-        self.dc_noskip();
-        self.dc();
+    pub fn inc(&mut self) -> Result<(NodeIndex, NodeIndex), PatternError> {
+        let s1 = self.dc_noskip()?;
+        let s2 = self.dc()?;
+        Ok((s1, s2))
     }
 
     pub fn slip_stitch(&mut self, into: graph::NodeIndex) {
         self.graph_mut().add_edge(self.prev, into, EdgeType::Slip);
     }
 
-    pub fn start_ch_sp(&mut self) {
+    pub fn start_ch_sp(&mut self) -> Result<(), PatternError> {
         if self.current_ch_sp.is_some() {
-            panic!("tried to start a chain space while one was already started!");
+            return Err(PatternError::NestedChainSpace);
         }
 
         self.current_ch_sp = Some(vec![self.prev]);
+
+        Ok(())
     }
 
-    pub fn end_ch_sp(&mut self) -> graph::NodeIndex {
+    pub fn end_ch_sp(&mut self) -> Result<NodeIndex, PatternError> {
         let ch_sp = self
             .current_ch_sp
             .take()
-            .expect("tried to end a chain space while none was started!");
+            .ok_or(PatternError::NoChainSpace)?;
 
         let new_node = self.graph_mut().add_node(Node::ch_sp());
         ch_sp.into_iter().for_each(|neighbour| {
@@ -450,7 +502,7 @@ impl Part {
                 .add_edge(new_node, neighbour, EdgeType::Neighbour);
         });
 
-        new_node
+        Ok(new_node)
     }
 
     pub fn set_ignore(&mut self, ignore: bool) {
@@ -458,150 +510,150 @@ impl Part {
     }
 }
 
-pub fn test_pattern_spiral_rounds() -> Pattern {
+pub fn test_pattern_spiral_rounds() -> Result<Pattern, PatternError> {
     let pattern = Pattern::new();
     let mut part = pattern.add_part();
 
-    part.start_ch_sp();
+    part.start_ch_sp()?;
     let start = part.prev();
     for _ in 1..=2 {
-        part.chain();
+        part.chain()?;
     }
     part.slip_stitch(start);
-    let ch_sp = part.end_ch_sp();
+    let ch_sp = part.end_ch_sp()?;
 
-    part.new_row();
+    part.new_row()?;
     part.set_insert(ch_sp);
     for _ in 1..=6 {
-        part.dc_noskip();
+        part.dc_noskip()?;
     }
 
-    part.new_row();
+    part.new_row()?;
     for _ in 1..=6 {
-        part.dc_noskip();
-        part.dc();
+        part.dc_noskip()?;
+        part.dc()?;
     }
 
     for j in 1..20 {
-        part.new_row();
+        part.new_row()?;
         for _ in 1..=6 {
             for _ in 1..=j {
-                part.dc();
+                part.dc()?;
             }
-            part.dc_noskip();
-            part.dc();
+            part.dc_noskip()?;
+            part.dc()?;
         }
     }
 
-    pattern.into_inner()
+    Ok(pattern.into_inner())
 }
 
-pub fn test_pattern_sphere() -> Pattern {
+pub fn test_pattern_sphere() -> Result<Pattern, PatternError> {
     let pattern = Pattern::new();
     let mut part = pattern.add_part();
 
-    part.start_ch_sp();
+    part.start_ch_sp()?;
     let start = part.prev();
     for _ in 1..=2 {
-        part.chain();
+        part.chain()?;
     }
     part.slip_stitch(start);
-    let ch_sp = part.end_ch_sp();
+    let ch_sp = part.end_ch_sp()?;
 
-    part.new_row();
+    part.new_row()?;
     part.set_insert(ch_sp);
     for _ in 1..=6 {
-        part.dc_noskip();
+        part.dc_noskip()?;
     }
 
     for j in 0..=4 {
-        part.new_row();
+        part.new_row()?;
         for _ in 1..=6 {
             for _ in 1..=j {
-                part.dc_noskip();
-                part.skip();
+                part.dc_noskip()?;
+                part.skip()?;
             }
-            part.dc_noskip();
-            part.dc();
+            part.dc_noskip()?;
+            part.dc()?;
         }
     }
 
     for _ in 1..=7 {
-        part.new_row();
+        part.new_row()?;
         for _ in 1..=36 {
-            part.dc();
+            part.dc()?;
         }
     }
 
     for j in (0..=4).rev() {
-        part.new_row();
+        part.new_row()?;
         for _ in 1..=6 {
             for _ in 1..=j {
-                part.dc();
+                part.dc()?;
             }
-            part.dec();
+            part.dec()?;
         }
     }
 
-    part.new_row();
-    part.dec();
-    part.dec();
+    part.new_row()?;
+    part.dec()?;
+    part.dec()?;
 
-    pattern.into_inner()
+    Ok(pattern.into_inner())
 }
 
-pub fn test_pattern_joined_rounds() -> Pattern {
+pub fn test_pattern_joined_rounds() -> Result<Pattern, PatternError> {
     let pattern = Pattern::new();
     let mut part = pattern.add_part();
 
     let start = part.prev();
     for _ in 1..=5 {
-        part.chain();
+        part.chain()?;
     }
     part.slip_stitch(start);
 
-    part.turn_noskip();
+    part.turn_noskip()?;
     let start = part.prev();
-    part.dc();
+    part.dc()?;
     for _ in 1..=5 {
-        part.inc();
+        part.inc()?;
     }
     part.slip_stitch(start);
 
     for round in 1..=20 {
-        part.turn();
+        part.turn()?;
         let start = part.prev();
         for _ in 1..=5 {
-            part.inc();
+            part.inc()?;
             for _ in 1..=round {
-                part.dc();
+                part.dc()?;
             }
         }
-        part.inc();
+        part.inc()?;
         for _ in 1..round {
-            part.dc();
+            part.dc()?;
         }
         part.slip_stitch(start);
     }
 
-    pattern.into_inner()
+    Ok(pattern.into_inner())
 }
 
-pub fn test_pattern_flat(n: u32) -> Pattern {
+pub fn test_pattern_flat(n: u32) -> Result<Pattern, PatternError> {
     let pattern = Pattern::new();
     let mut part = pattern.add_part();
     for _ in 1..=n {
-        part.chain();
+        part.chain()?;
     }
 
     for _ in 1..=n {
-        part.turn();
+        part.turn()?;
         for _ in 1..=n {
-            part.dc();
+            part.dc()?;
         }
     }
 
-    pattern.into_inner()
+    Ok(pattern.into_inner())
 }
 
 #[cfg(test)]
@@ -613,7 +665,7 @@ mod tests {
 
     #[test]
     fn test_flat() {
-        let pattern = test_pattern_flat(15);
+        let pattern = test_pattern_flat(15).unwrap();
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/flat.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
@@ -621,7 +673,7 @@ mod tests {
 
     #[test]
     fn test_spiral_rounds() {
-        let pattern = test_pattern_spiral_rounds();
+        let pattern = test_pattern_spiral_rounds().unwrap();
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/spiral_rounds.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
@@ -629,7 +681,7 @@ mod tests {
 
     #[test]
     fn test_joined_rounds() {
-        let pattern = test_pattern_joined_rounds();
+        let pattern = test_pattern_joined_rounds().unwrap();
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/joined_rounds.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
@@ -637,7 +689,7 @@ mod tests {
 
     #[test]
     fn test_sphere() {
-        let pattern = test_pattern_sphere();
+        let pattern = test_pattern_sphere().unwrap();
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/sphere.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();

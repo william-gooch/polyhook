@@ -66,7 +66,7 @@ impl Renderer {
             cache: Default::default(),
         });
 
-        let pattern = hooklib::pattern::test_pattern_sphere();
+        let pattern = hooklib::pattern::test_pattern_sphere().unwrap();
 
         let diffuse_bytes = include_bytes!("../assets/dc.png");
         let tex_diffuse = Texture::from_bytes(device, diffuse_bytes, "dc_diffuse");

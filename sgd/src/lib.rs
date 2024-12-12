@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_sgd() {
-        let pattern = test_pattern_sphere();
+        let pattern = test_pattern_sphere().unwrap();
 
         let graph = sgd::<Vec3, _, _>(&*pattern.graph());
 
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_sgd_size() {
         for i in (5..=30).step_by(5) {
-            let pattern = test_pattern_flat(i);
+            let pattern = test_pattern_flat(i).unwrap();
             let _ = sgd::<Vec3, _, _>(&pattern.triangulated_graph());
         }
     }

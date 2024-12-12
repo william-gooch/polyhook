@@ -71,8 +71,15 @@ impl RenderButton {
     fn show<F: Fn() -> String>(&mut self, ui: &mut Ui, get_code: F) -> Option<ModelData> {
         if let Some(err) = &self.err {
             let err_str = format!("{err}");
-
-            ui.colored_label(Color32::RED, err_str);
+            ui.horizontal(|ui| {
+                if ui.button("X").clicked() {
+                    self.err = None;
+                }
+                ui.add_sized(
+                    [300.0, ui.available_height()],
+                    egui::Label::new(egui::RichText::new(err_str).color(Color32::RED)).wrap(),
+                );
+            });
         }
 
         ui.add_enabled_ui(self.thread.as_ref().is_none_or(|t| t.is_finished()), |ui| {
