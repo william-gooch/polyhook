@@ -316,6 +316,18 @@ impl Part {
         self.start
     }
 
+    pub fn current_row(&self) -> Result<&Vec<graph::NodeIndex>, PatternError> {
+        self.rows
+            .last()
+            .ok_or(PatternError::NoRows)
+    }
+
+    pub fn current_row_mut(&mut self) -> Result<&mut Vec<graph::NodeIndex>, PatternError> {
+        self.rows
+            .last_mut()
+            .ok_or(PatternError::NoRows)
+    }
+
     pub fn set_insert(&mut self, insert: graph::NodeIndex) {
         self.insert = Some(insert);
     }
@@ -373,9 +385,7 @@ impl Part {
         let new_node = self.graph_mut().add_node(Node::turn());
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
-        self.rows
-            .last_mut()
-            .ok_or(PatternError::NoRows)?
+        self.current_row_mut()?
             .push(new_node);
         self.prev = new_node;
 
@@ -412,9 +422,7 @@ impl Part {
         }
 
         if !self.ignore_for_row {
-            self.rows
-                .last_mut()
-                .ok_or(PatternError::NoRows)?
+            self.current_row_mut()?
                 .push(new_node);
         }
 
@@ -437,9 +445,7 @@ impl Part {
         self.prev = new_node;
 
         if !self.ignore_for_row {
-            self.rows
-                .last_mut()
-                .ok_or(PatternError::NoRows)?
+            self.current_row_mut()?
                 .push(new_node);
         }
 
@@ -461,9 +467,7 @@ impl Part {
         self.prev = new_node;
 
         if !self.ignore_for_row {
-            self.rows
-                .last_mut()
-                .ok_or(PatternError::NoRows)?
+            self.current_row_mut()?
                 .push(new_node);
         }
 

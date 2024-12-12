@@ -70,7 +70,7 @@ impl PatternScript {
                 .register_fn("dc_", callback_fallible(part.clone(),     Part::dc_noskip))
                 .register_fn("dec", callback_fallible(part.clone(),     Part::dec))
                 .register_fn("skip", callback_fallible(part.clone(),    Part::skip))
-                .register_fn("magic_ring", callback(part.clone(),    Part::magic_ring))
+                .register_fn("magic_ring", callback(part.clone(),       Part::magic_ring))
                 .register_fn("mark", {
                     let part = part.clone();
                     move || part.read().unwrap().prev()
@@ -78,6 +78,14 @@ impl PatternScript {
                 .register_fn("curr", {
                     let part = part.clone();
                     move || -> Result<_, Box<EvalAltResult>> { part.read().unwrap().insert().ok_or("No current insertion point".into()) }
+                })
+                .register_fn("row", {
+                    let part = part.clone();
+                    move || -> Result<Dynamic, Box<EvalAltResult>> {
+                        part.read().unwrap().current_row()
+                            .map(|v| v.clone().into())
+                            .map_err(|err| format!("{err}").into())
+                    }
                 })
                 .register_fn("ss", {
                     let part = part.clone();
