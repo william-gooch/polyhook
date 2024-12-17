@@ -9,4 +9,4 @@ members = [
 [workspace.dependencies]
 petgraph = { version = "0.6.5" }
 glam = { version = "0.29.0", features = ["bytemuck"] }
-rhai = { version = "1.19.0" }
+rhai = { version = "1.19.0", features = ["sync", "internals"] }

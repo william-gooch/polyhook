@@ -2,14 +2,18 @@ mod render;
 
 mod code_view;
 mod parametric_view;
+mod parameter_view;
 
 use egui::{Color32, Ui, Vec2};
 use hooklib::examples::{self, EXAMPLE_FLAT};
+use parameter_view::ParameterView;
 use parametric_view::ParametricView;
 use render::model::ModelData;
 use render::pattern_model::{model_from_pattern, model_from_pattern_2d};
 use render::transform::Orbit;
 use rfd::FileDialog;
+use rhai::{Dynamic, ImmutableString};
+use std::collections::HashMap;
 use std::env::args;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -37,10 +41,10 @@ struct RenderButton {
 }
 
 impl RenderButton {
-    fn start_render(&mut self, code: String) {
+    fn start_render(&mut self, code: String, parameters: HashMap<ImmutableString, Dynamic>) {
         let is_2d_mode = self.is_2d_mode;
         self.thread = Some(spawn(move || {
-            let pattern = hooklib::script::PatternScript::eval_script(code.as_ref());
+            let pattern = hooklib::script::PatternScript::eval_script_with_exports(code.as_ref(), &parameters);
             match pattern {
                 Ok(pattern) => {
                     if is_2d_mode {
@@ -68,7 +72,7 @@ impl RenderButton {
         }
     }
 
-    fn show<F: Fn() -> String>(&mut self, ui: &mut Ui, get_code: F) -> Option<ModelData> {
+    fn show<F: Fn() -> (String, HashMap<ImmutableString, Dynamic>)>(&mut self, ui: &mut Ui, get_code: F) -> Option<ModelData> {
         if let Some(err) = &self.err {
             let err_str = format!("{err}");
             ui.horizontal(|ui| {
@@ -87,7 +91,8 @@ impl RenderButton {
             let button = ui.add_sized(ui.available_size(), egui::Button::new("Render"));
             if button.clicked() {
                 self.err = None;
-                self.start_render(get_code());
+                let (code, parameters) = get_code();
+                self.start_render(code, parameters);
             }
         });
 
@@ -105,12 +110,14 @@ impl RenderButton {
 #[derive(PartialEq)]
 enum AppTab {
     Parametric,
+    Parameters,
     Code,
 }
 
 struct App {
     code_view: code_view::CodeView,
     parametric_view: ParametricView,
+    parameter_view: ParameterView,
     renderer: render::Renderer,
     render_button: RenderButton,
     orbit: Orbit,
@@ -145,6 +152,7 @@ impl App {
         Self {
             code_view: code_view::CodeView { code },
             parametric_view: Default::default(),
+            parameter_view: Default::default(),
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
             render_button: Default::default(),
             orbit: Orbit {
@@ -221,6 +229,13 @@ impl eframe::App for App {
                             self.tab = AppTab::Code;
                         }
                         if ui
+                            .selectable_label(self.tab == AppTab::Parameters, "Parameters")
+                            .clicked()
+                        {
+                            self.parameter_view.refresh_parameters(&self.code_view.code);
+                            self.tab = AppTab::Parameters;
+                        }
+                        if ui
                             .selectable_label(self.tab == AppTab::Parametric, "Parametric View")
                             .clicked()
                         {
@@ -232,13 +247,15 @@ impl eframe::App for App {
                         self.code_view.code_view_show(ui);
                     } else if self.tab == AppTab::Parametric {
                         ui.add(&mut self.parametric_view);
+                    } else if self.tab == AppTab::Parameters {
+                        ui.add(&mut self.parameter_view);
                     }
 
                     let new_model = self.render_button.show(ui, || {
-                        if self.tab == AppTab::Code {
-                            self.code_view.code.clone()
+                        if self.tab == AppTab::Code || self.tab == AppTab::Parameters {
+                            (self.code_view.code.clone(), self.parameter_view.parameters.clone())
                         } else {
-                            self.parametric_view.get_code()
+                            (self.parametric_view.get_code(), Default::default())
                         }
                     });
                     if let Some(new_model) = new_model {
