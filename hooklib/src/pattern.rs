@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, RwLock};
 
+use glam::Vec3;
 use itertools::Itertools;
 use petgraph::{
     graph::{self, NodeIndex},
@@ -35,39 +36,43 @@ impl Display for PatternError {
 
 impl Error for PatternError {}
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Node {
-    Stitch { ty: &'static str, turn: bool },
+    Stitch { ty: &'static str, turn: bool, color: Vec3 },
     ChainSpace,
     MagicRing,
 }
 
 impl Node {
-    fn chain() -> Self {
+    fn chain(color: Vec3) -> Self {
         Self::Stitch {
             ty: "ch",
             turn: false,
+            color,
         }
     }
 
-    fn turn() -> Self {
+    fn turn(color: Vec3) -> Self {
         Self::Stitch {
             ty: "ch",
             turn: true,
+            color,
         }
     }
 
-    fn dc() -> Self {
+    fn dc(color: Vec3) -> Self {
         Self::Stitch {
             ty: "dc",
             turn: false,
+            color,
         }
     }
 
-    fn decrease() -> Self {
+    fn decrease(color: Vec3) -> Self {
         Self::Stitch {
             ty: "dec",
             turn: false,
+            color,
         }
     }
 
@@ -93,7 +98,7 @@ impl Node {
 
 impl Default for Node {
     fn default() -> Self {
-        Node::chain()
+        Node::chain(Vec3::ONE)
     }
 }
 
@@ -147,6 +152,7 @@ pub struct Part {
     rows: Vec<Vec<graph::NodeIndex>>,
     direction: SkipDirection,
     ignore_for_row: bool,
+    current_color: Vec3,
 }
 
 impl PartialEq for Pattern {
@@ -242,7 +248,7 @@ impl Pattern {
                 let end = *new_graph.node_weight(end).unwrap();
                 let edge_length_type = match edge {
                     EdgeType::Previous => {
-                        if start.stitch_type() == "ch" && end == Node::dc() {
+                        if start.stitch_type() == "ch" && end.stitch_type() == "dc" {
                             EdgeType::Insert
                         } else {
                             EdgeType::Previous
@@ -337,7 +343,7 @@ impl Part {
     }
 
     pub fn new_from_parent(parent: Arc<Pattern>) -> Self {
-        let start = parent.graph.write().unwrap().add_node(Node::chain());
+        let start = parent.graph.write().unwrap().add_node(Node::chain(Vec3::ONE));
         let prev = start;
         let rows = vec![vec![start]];
 
@@ -350,6 +356,7 @@ impl Part {
             rows,
             direction: Default::default(),
             ignore_for_row: false,
+            current_color: Vec3::ONE,
         }
     }
 
@@ -382,7 +389,7 @@ impl Part {
         self.new_row()?;
         self.insert = Some(self.prev);
         self.direction = SkipDirection::Reverse;
-        let new_node = self.graph_mut().add_node(Node::turn());
+        let new_node = self.graph_mut().add_node(Node::turn(self.current_color));
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
         self.current_row_mut()?
@@ -412,7 +419,7 @@ impl Part {
     }
 
     pub fn chain(&mut self) -> Result<NodeIndex, PatternError> {
-        let new_node = self.graph_mut().add_node(Node::chain());
+        let new_node = self.graph_mut().add_node(Node::chain(self.current_color));
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
         self.prev = new_node;
@@ -436,7 +443,7 @@ impl Part {
     }
 
     pub fn dc_noskip(&mut self) -> Result<NodeIndex, PatternError> {
-        let new_node = self.graph_mut().add_node(Node::dc());
+        let new_node = self.graph_mut().add_node(Node::dc(self.current_color));
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph_mut()
@@ -453,7 +460,7 @@ impl Part {
     }
 
     pub fn dec(&mut self) -> Result<NodeIndex, PatternError> {
-        let new_node = self.graph_mut().add_node(Node::decrease());
+        let new_node = self.graph_mut().add_node(Node::decrease(self.current_color));
         let insert = self.insert.ok_or(PatternError::NoInsert)?;
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
@@ -511,6 +518,10 @@ impl Part {
 
     pub fn set_ignore(&mut self, ignore: bool) {
         self.ignore_for_row = ignore;
+    }
+
+    pub fn change_color(&mut self, color: Vec3) {
+        self.current_color = color;
     }
 }
 

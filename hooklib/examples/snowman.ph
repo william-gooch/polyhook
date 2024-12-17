@@ -144,6 +144,7 @@ new_row();
 }
 
 fn hat() {
+change_color([0.1, 0.1, 0.1]);
 magic_ring();
 into(mark());
 
@@ -200,6 +201,7 @@ body_sews
 }
 
 fn nose() {
+change_color([1.0, 0.5, 0.1]);
 magic_ring();
 into(mark());
 4 # dc_;

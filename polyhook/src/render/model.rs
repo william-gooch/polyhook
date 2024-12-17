@@ -14,18 +14,20 @@ use super::shader::BindGroups;
 pub struct Vertex {
     position: [f32; 4],
     uv: [f32; 2],
+    color: [f32; 3],
     normal: [f32; 3],
     tangent: [f32; 3],
     bitangent: [f32; 3],
 }
 
 impl Vertex {
-    pub fn new(position: Vec3, uv: Vec2, normal: Vec3, tangent: Vec3) -> Self {
+    pub fn new(position: Vec3, uv: Vec2, color: Vec3, normal: Vec3, tangent: Vec3) -> Self {
         let bitangent = normal.cross(tangent).normalize();
 
         Self {
             position: [position.x, position.y, position.z, 1.0],
             uv: [uv.x, uv.y],
+            color: [color.x, color.y, color.z],
             normal: [normal.x, normal.y, normal.z],
             tangent: [tangent.x, tangent.y, tangent.z],
             bitangent: [bitangent.x, bitangent.y, bitangent.z],
@@ -49,18 +51,23 @@ impl Vertex {
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
-                    offset: offset_of!(Vertex, normal) as u64,
+                    offset: offset_of!(Vertex, color) as u64,
                     shader_location: 2,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
-                    offset: offset_of!(Vertex, tangent) as u64,
+                    offset: offset_of!(Vertex, normal) as u64,
                     shader_location: 3,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x3,
-                    offset: offset_of!(Vertex, bitangent) as u64,
+                    offset: offset_of!(Vertex, tangent) as u64,
                     shader_location: 4,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: offset_of!(Vertex, bitangent) as u64,
+                    shader_location: 5,
                 },
             ],
         }

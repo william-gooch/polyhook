@@ -1,16 +1,18 @@
 struct VertexIn {
     @location(0) position: vec4f,
     @location(1) uv: vec2f,
-    @location(2) normal: vec3f,
-    @location(3) tangent: vec3f,
-    @location(4) bitangent: vec3f,
+    @location(2) color: vec3f,
+    @location(3) normal: vec3f,
+    @location(4) tangent: vec3f,
+    @location(5) bitangent: vec3f,
 };
 
 struct VertexOut {
     @builtin(position) position: vec4f,
     @location(0) uv: vec2f,
-    @location(1) tangent_position: vec3f,
-    @location(2) tangent_light_dir: vec3f,
+    @location(1) color: vec3f,
+    @location(2) tangent_position: vec3f,
+    @location(3) tangent_light_dir: vec3f,
 };
 
 struct MVP {
@@ -53,6 +55,7 @@ fn vs_main(v: VertexIn) -> VertexOut {
 
     out.position = mvp.projection * mvp.view * world_position;
     out.uv = v.uv;
+    out.color = v.color;
     out.tangent_position = tangent_matrix * world_position.xyz;
     out.tangent_light_dir = tangent_matrix * light_dir.xyz;
 
@@ -68,5 +71,5 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
     let tangent_normal = tex_normal.xyz * 2.0 - 1.0;
     
     let diffuse_factor = max(dot(tangent_normal, normalize(in.tangent_light_dir)), 0.0);
-    return min(diffuse_factor + ambient_factor, 1.0) * tex_diffuse;
+    return min(diffuse_factor + ambient_factor, 1.0) * tex_diffuse * vec4f(in.color, 1.0);
 }

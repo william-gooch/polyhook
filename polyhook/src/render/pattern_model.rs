@@ -15,7 +15,7 @@ fn model_from_graph(
     let mut verts: Vec<Vertex> = Vec::new();
     let mut tris: Vec<[u16; 3]> = Vec::new();
 
-    let mut create_rect = |source_pos: Vec3, target_pos: Vec3, tangent: Vec3, width: f32| {
+    let mut create_rect = |source_pos: Vec3, target_pos: Vec3, tangent: Vec3, width: f32, color: Vec3| {
         let dir = target_pos - source_pos;
         let offset_len = width * 0.5;
 
@@ -26,10 +26,10 @@ fn model_from_graph(
         let idx = verts.len() as u16;
         verts.extend(
             [
-                Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), normal, tangent),
-                Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), normal, tangent),
-                Vertex::new(target_pos + offset_x, [0.0, 0.5].into(), normal, tangent),
-                Vertex::new(target_pos - offset_x, [1.0, 0.5].into(), normal, tangent),
+                Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), color, normal, tangent),
+                Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), color, normal, tangent),
+                Vertex::new(target_pos + offset_x, [0.0, 0.5].into(), color, normal, tangent),
+                Vertex::new(target_pos - offset_x, [1.0, 0.5].into(), color, normal, tangent),
             ]
             .iter(),
         );
@@ -39,10 +39,10 @@ fn model_from_graph(
         let idx = verts.len() as u16;
         verts.extend(
             [
-                Vertex::new(source_pos - offset_x, [0.0, 0.5].into(), -normal, tangent),
-                Vertex::new(source_pos + offset_x, [1.0, 0.5].into(), -normal, tangent),
-                Vertex::new(target_pos + offset_x, [1.0, 1.0].into(), -normal, tangent),
-                Vertex::new(target_pos - offset_x, [0.0, 1.0].into(), -normal, tangent),
+                Vertex::new(source_pos - offset_x, [0.0, 0.5].into(), color, -normal, tangent),
+                Vertex::new(source_pos + offset_x, [1.0, 0.5].into(), color, -normal, tangent),
+                Vertex::new(target_pos + offset_x, [1.0, 1.0].into(), color, -normal, tangent),
+                Vertex::new(target_pos - offset_x, [0.0, 1.0].into(), color, -normal, tangent),
             ]
             .iter(),
         );
@@ -53,6 +53,10 @@ fn model_from_graph(
     graph
         .node_references()
         .for_each(|(node, (source_pos, node_type))| {
+            let color = match node_type {
+                hooklib::pattern::Node::Stitch { color, .. } => *color,
+                _ => Vec3::ONE,
+            };
             graph.edges_directed(node, Outgoing).for_each(|e| {
                 if *e.weight().1 == EdgeType::Insert {
                     let target_pos = graph.node_weight(e.target()).unwrap().0;
@@ -73,7 +77,7 @@ fn model_from_graph(
                         (tangent_1 + tangent_2) / 2.0
                     };
 
-                    create_rect(*source_pos, target_pos, tangent, tangent.length());
+                    create_rect(*source_pos, target_pos, tangent, tangent.length(), color);
                 }
             });
         });

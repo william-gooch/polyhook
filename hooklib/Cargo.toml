@@ -12,3 +12,4 @@ petgraph = { workspace = true }
 rhai = { workspace = true, features = ["sync"] }
 slotmap = "1.0.7"
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+glam = { workspace = true }

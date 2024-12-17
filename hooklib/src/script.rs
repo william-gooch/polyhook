@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use glam::Vec3;
 use rhai::{Dynamic, Engine, EvalAltResult, FnPtr, NativeCallContext, RhaiNativeFunc};
 
 use crate::pattern::{Part, Pattern, PatternError};
@@ -124,6 +125,21 @@ impl PatternScript {
                             .collect::<Result<Vec<_>, _>>()?;
                         pattern.sew(row_1, row_2)
                             .map_err(|err| format!("{err}").into())
+                    }
+                })
+                .register_fn("change_color", {
+                    let part = part.clone();
+                    move |color: rhai::Array| -> Result<(), Box<EvalAltResult>>{
+                        let color = color.into_iter()
+                            .map(|comp| comp.cast::<f64>() as f32)
+                            .collect::<Vec<_>>();
+                        if color.len() != 3 {
+                            Err::<(), Box<EvalAltResult>>("Color should be in RGB format".into())?;
+                        }
+                        let color = Vec3::from_slice(&color);
+                        part.write().unwrap().change_color(color);
+
+                        Ok(())
                     }
                 })
                 .on_var(|name, _index, ctx| {
