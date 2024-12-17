@@ -4,7 +4,7 @@ use std::{
 };
 
 use glam::Vec3;
-use rhai::{Dynamic, Engine, EvalAltResult, FnPtr, NativeCallContext, RhaiNativeFunc};
+use rhai::{ASTFlags, Dynamic, Engine, EvalAltResult, Expr, FnPtr, Module, NativeCallContext, RhaiNativeFunc, Variant, AST};
 
 use crate::pattern::{Part, Pattern, PatternError};
 
@@ -152,7 +152,28 @@ impl PatternScript {
                     }
                 });
 
-            engine.run(script)?
+            let ast = engine.compile(script)?;
+
+            let new_stmts = ast.statements().iter()
+                .map(|stmt| {
+                    let mut stmt = stmt.clone();
+
+                    if let rhai::Stmt::Var(ref mut body, flags, position) = stmt {
+                        if flags.contains(ASTFlags::EXPORTED) && !flags.contains(ASTFlags::CONSTANT) {
+                            println!("found exported constant: {:?}", body.0);
+                            body.1 = Expr::from_dynamic(1234.into(), body.1.position());
+                        }
+                    }
+
+                    stmt
+                })
+                .collect::<Vec<_>>();
+
+            let new_ast = AST::new(new_stmts, Module::default());
+            let new_ast = new_ast.merge(&ast.clone_functions_only());
+            println!("{new_ast:?}");
+
+            engine.run_ast(&new_ast)?
         }
 
         drop(part);

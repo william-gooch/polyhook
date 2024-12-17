@@ -9,7 +9,7 @@ edition = "2021"
 elsa = "1.10.0"
 itertools = "0.13.0"
 petgraph = { workspace = true }
-rhai = { workspace = true, features = ["sync"] }
+rhai = { workspace = true, features = ["sync", "internals"] }
 slotmap = "1.0.7"
 uuid = { version = "1.10.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 glam = { workspace = true }
