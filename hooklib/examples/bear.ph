@@ -1,5 +1,5 @@
 fn bobble() {
-	ignore(|| { 4 # dc_ });
+	ignore(|| { rep 4 dc_() });
 	dc();
 }
 
@@ -9,16 +9,16 @@ fn inc() {
 }
 
 let start = mark();
-2 # chain;
+rep 2 chain();
 
 // row 1
 new_row();
 into(start);
-6 # dc_;
+rep 6 dc_();
 
 // row 2
 new_row();
-6 # || {
+rep 6 {
 	dc_();
 	dc();
 };
@@ -29,7 +29,7 @@ dc();
 inc();
 bobble();
 inc();
-2 # || {
+rep 2 {
 	dc();
 	inc();
 };
@@ -39,46 +39,46 @@ dc();
 inc();
 
 // row 4-6
-3 # || {
+rep 3 {
 	new_row();
-	18 # dc;
+	rep 18 dc();
 };
 
 // row 7
 new_row();
-6 # || {
+rep 6 {
 	dc();
 	dec();
 };
 
 // row 8
 new_row();
-12 # dc;
+rep 12 dc();
 
 // row 9
 new_row();
-4 # dc;
+rep 4 dc();
 bobble();
-3 # dc;
+rep 3 dc();
 bobble();
-3 # dc;
+rep 3 dc();
 
 // row 10
 new_row();
-12 # dc;
+rep 12 dc();
 
 // row 11
 new_row();
-4 # dc;
+rep 4 dc();
 bobble();
-3 # dc;
+rep 3 dc();
 bobble();
-3 # dc;
+rep 3 dc();
 
 // row 12
 new_row();
 chain_space(|| {
-    4 # || {
+    rep 4 {
         dc();
         dec();
     }

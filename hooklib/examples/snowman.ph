@@ -7,31 +7,31 @@ fn inc() {
 fn body() {
 magic_ring();
 into(mark());
-8 # dc_;
+rep 8 dc_();
 
 new_row();
-8 # inc;
+rep 8 inc();
 let hat_sews = row();
 
 new_row();
-8 # || {
+rep 8 {
 	dc();
 	inc();
 };
 
 new_row();
-6 # || {
-	3 # dc;
+rep 6 {
+	rep 3 dc();
 	inc();
 };
 
 new_row();
-30 # dc;
+rep 30 dc();
 
 
 new_row();
-6 # || {
-	4 # dc;
+rep 6 {
+	rep 4 dc();
 	inc();
 };
 
@@ -42,103 +42,103 @@ let nose_sews = [
 
 
 new_row();
-36 # dc;
+rep 36 dc();
 
 let last_sew = row()[13];
 nose_sews.push(row()[16]);
 
 new_row();
-36 # dc;
+rep 36 dc();
 
 nose_sews.push(row()[15]);
 nose_sews.push(row()[14]);
 nose_sews.push(last_sew);
 
 new_row();
-36 # dc;
+rep 36 dc();
 
 new_row();
-36 # dc;
+rep 36 dc();
 
 new_row();
-6 # || {
-	4 # dc;
+rep 6 {
+	rep 4 dc();
 	dec();
 };
 
 new_row();
-6 # || {
-	3 # dc;
+rep 6 {
+	rep 3 dc();
 	dec();
 };
 
 new_row();
-4 # || {
-	4 # dc;
+rep 4 {
+	rep 4 dc();
 	dec();
 };
 
 new_row();
-10 # || {
+rep 10 {
 	dc();
 	inc();
 };
 
 new_row();
-6 # || {
-	4 # dc;
+rep 6 {
+	rep 4 dc();
 	inc();
 };
 
 new_row();
-6 # || {
-	5 # dc;
+rep 6 {
+	rep 5 dc();
 	inc();
 };
 
 new_row();
-3 # || {
-	13 # dc;
+rep 3 {
+	rep 13 dc();
 	inc();
 };
 
-4 # || {
+rep 4 {
 	new_row();
-	45 # dc;
+	rep 45 dc();
 };
 
 new_row();
-3 # || {
-	13 # dc;
+rep 3 {
+	rep 13 dc();
 	dec();
 };
 
 new_row();
-6 # || {
-	5 # dc;
+rep 6 {
+	rep 5 dc();
 	dec();
 };
 
 new_row();
-6 # || {
-	4 # dc;
+rep 6 { 
+	rep 4 dc();
 	dec();
 };
 
 new_row();
-6 # || {
-	3 # dc;
+rep 6 {
+	rep 3 dc();
 	dec();
 };
 
 new_row();
-8 # || {
+rep 8 {
 	dc();
 	dec();
 };
 
 new_row();
-8 # dec;
+rep 8 dec();
 
 [hat_sews, nose_sews]
 }
@@ -148,48 +148,48 @@ change_color([0.1, 0.1, 0.1]);
 magic_ring();
 into(mark());
 
-8 # dc_;
+rep 8 dc_();
 
 new_row();
-8 # inc;
+rep 8 inc();
 
 new_row();
-8 # || {
+rep 8 {
 	dc();
 	inc();
 };
 
 new_row();
-24 # dc;
+rep 24 dc();
 
 new_row();
-4 # || {
-	4 # dc;
+rep 4 {
+	rep 4 dc();
 	dec();
 };
 
 new_row();
-20 # dc;
+rep 20 dc();
 
 new_row();
-4 # || {
-	3 # dc;
+rep 4 {
+	rep 3 dc();
 	dec();
 };
 
 new_row();
-16 # dc;
+rep 16 dc();
 let body_sews = row();
 
 new_row();
-8 # || {
+rep 8 {
 	dc();
 	inc();
 };
 
 new_row();
-8 # || {
-	2 # dc;
+rep 8 {
+	rep 2 dc();
 	inc();
 };
 
@@ -204,16 +204,16 @@ fn nose() {
 change_color([1.0, 0.5, 0.1]);
 magic_ring();
 into(mark());
-4 # dc_;
+rep 4 dc_();
 
 new_row();
-2 # || {
+rep 2 {
 	dc();
 	inc();
 };
 
 new_row();
-6 # dc;
+rep 6 dc();
 
 row()
 }

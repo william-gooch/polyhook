@@ -4,12 +4,15 @@ pub const EXAMPLES: &[(&str, &str)] = &[
     ("Joined Rounds", EXAMPLE_JOINED_ROUNDS),
     ("Sphere", EXAMPLE_SPHERE),
     ("Dynamic Circle", EXAMPLE_DYNAMIC_CIRCLE),
+    ("Sew", EXAMPLE_SEW),
+    ("Bear", EXAMPLE_BEAR),
+    ("Snowman", EXAMPLE_SNOWMAN),
 ];
 
-pub const EXAMPLE_FLAT: &str = r#"15 # chain;
-15 # || {
+pub const EXAMPLE_FLAT: &str = r#"rep 15 chain();
+rep 15 {
     turn();
-    15 # dc;
+    rep 15 dc();
 }
 "#;
 
@@ -20,27 +23,29 @@ pub const EXAMPLE_SPIRAL_ROUNDS: &str = r#"fn inc() {
 
 let ch_sp = chain_space(|| {
     let start = mark();
-    2 # chain;
+    rep 2 chain();
     ss(start);
 });
 
 new_row();
 into(ch_sp);
 chain();
-6 # dc_;
+rep 6 dc_();
 
 new_row();
-6 # || {
+rep 6 {
     inc();
 };
 
-20 @ |j| {
+let j = 1;
+rep 20 {
     new_row();
-    6 # || {
-        j # dc;
+    rep 6 {
+        rep j dc();
         inc();
-    }
-}
+    };
+    j += 1;
+};
 "#;
 
 pub const EXAMPLE_JOINED_ROUNDS: &str = r#"fn inc() {
@@ -49,23 +54,24 @@ pub const EXAMPLE_JOINED_ROUNDS: &str = r#"fn inc() {
 }
 
 let start = mark();
-5 # chain;
+rep 5 chain();
 ss(start);
 
 turn_();
 let start = mark();
-dc();
-5 # inc;
+rep 6 inc();
 ss(start);
 
-20 @ |round| {
+let round = 1;
+rep 20 {
     turn();
     let start = mark();
-    6 # || {
+    rep 6 {
         inc();
-        round # dc;
+        rep round dc();
     };
     ss(start);
+    round += 1;
 }
 "#;
 
@@ -76,39 +82,44 @@ pub const EXAMPLE_SPHERE: &str = r#"fn inc() {
 
 let ch_sp = chain_space(|| {
     let start = mark();
-    2 # chain;
+    rep 2 chain();
     ss(start);
 });
 
 new_row();
 into(ch_sp);
-6 # dc_;
+rep 6 dc_();
 
-5 @ |j| {
+let j = 1;
+rep 5 {
     new_row();
-    6 # || {
-        (j-1) # || {
-            dc();
-        };
+    rep 6 {
+        rep (j-1) dc();
         inc();
     };
+    j += 1;
 };
 
-7 # || {
+rep 7 {
     new_row();
-    36 # dc;
+    rep 36 dc();
 };
 
-5 @ |j| {
+let j = 1;
+rep 5 {
     new_row();
-    6 # || {
-        (5-j) # dc;
+    rep 6 {
+        rep (5-j) dc();
         dec();
     };
+    j += 1;
 };
 
 new_row();
-2 # dec;
+rep 2 dec();
 "#;
 
 pub const EXAMPLE_DYNAMIC_CIRCLE: &str = include_str!("../examples/dynamic_circle.ph");
+pub const EXAMPLE_SEW: &str = include_str!("../examples/sew.ph");
+pub const EXAMPLE_BEAR: &str = include_str!("../examples/bear.ph");
+pub const EXAMPLE_SNOWMAN: &str = include_str!("../examples/snowman.ph");

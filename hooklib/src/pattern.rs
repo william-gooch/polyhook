@@ -447,7 +447,7 @@ impl Part {
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph_mut()
-            .add_edge(new_node, self.insert.unwrap(), EdgeType::Insert);
+            .add_edge(new_node, self.insert.ok_or(PatternError::NoInsert)?, EdgeType::Insert);
 
         self.prev = new_node;
 

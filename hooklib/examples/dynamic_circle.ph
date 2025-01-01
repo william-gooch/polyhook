@@ -19,7 +19,7 @@ new_row();
 
 let round_size = 12.0;
 let round_target = 12.0;
-15 @ |j| {
+rep 15 {
 	new_row();
 	
 	round_target += 6.28 * (15.0 / 18.5);

@@ -3,7 +3,7 @@ use std::{
 };
 
 use glam::Vec3;
-use rhai::{ASTFlags, Dynamic, Engine, EvalAltResult, Expr, FnPtr, Ident, ImmutableString, Module, NativeCallContext, RhaiNativeFunc, Stmt, Variant, AST};
+use rhai::{ASTFlags, Dynamic, Engine, EvalAltResult, EvalContext, Expr, Expression, FnPtr, Ident, ImmutableString, Module, NativeCallContext, RhaiNativeFunc, Stmt, Variant, AST};
 
 use crate::pattern::{Part, Pattern, PatternError};
 
@@ -14,9 +14,17 @@ impl PatternScript {
         let mut engine = Engine::new();
 
         engine
-            .register_custom_operator("#", 160).unwrap()
-            .register_custom_operator("@", 160).unwrap()
-            .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark");
+            .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark")
+            .register_custom_syntax(vec!["rep", "$expr$", "$expr$"], true, |context: &mut EvalContext, inputs: &[Expression]| {
+                let count = context.eval_expression_tree(&inputs[0])?.as_int().map_err(|err| format!("Invalid count type: {err}"))?;
+                
+                for _ in 0..count {
+                    let _ = context.eval_expression_tree(&inputs[1])?;
+                }
+
+                Ok(Dynamic::UNIT)
+            })
+            .unwrap();
 
         engine
     }
@@ -47,18 +55,6 @@ impl PatternScript {
 
         #[allow(deprecated)]
         engine
-            .register_fn("#", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
-                for _ in 1..=times {
-                    func.call_within_context::<Dynamic>(&ctx, ())?;
-                }
-                Ok(())
-            })
-            .register_fn("@", |ctx: NativeCallContext, times: i64, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
-                for i in 1..=times {
-                    func.call_within_context::<Dynamic>(&ctx, (i,))?;
-                }
-                Ok(())
-            })
             .register_fn("new_part", {
                 let part = part.clone();
                 let pattern = pattern.clone();
@@ -144,17 +140,17 @@ impl PatternScript {
 
                     Ok(())
                 }
-            })
-            .on_var(|name, _index, ctx| {
-                let var = ctx.scope().get_value::<Dynamic>(name);
-                if var.is_some() {
-                    Ok(None)
-                } else {
-                    println!("couldn't find name: {name}");
-                    let func = FnPtr::new(name)?;
-                    Ok(Some(func.into()))
-                }
             });
+            // .on_var(|name, _index, ctx| {
+            //     let var = ctx.scope().get_value::<Dynamic>(name);
+            //     if var.is_some() {
+            //         Ok(None)
+            //     } else {
+            //         println!("couldn't find name: {name}");
+            //         let func = FnPtr::new(name)?;
+            //         Ok(Some(func.into()))
+            //     }
+            // });
 
         engine
     }
@@ -238,21 +234,33 @@ impl PatternScript {
 
 #[cfg(test)]
 mod tests {
+    use crate::examples;
+
     use super::*;
 
     #[test]
     fn test_script() {
         let pattern = PatternScript::eval_script(
             r#"
-15 # chain;
-15 # || {
+rep 15 chain();
+rep 15 {
     turn();
-    15 # dc;
+    rep 15 dc();
 }
         "#,
         )
         .expect("Error in evaluating script");
 
         assert_eq!(pattern, crate::pattern::test_pattern_flat(15).unwrap());
+    }
+
+    #[test]
+    fn test_all_examples() {
+        examples::EXAMPLES.iter()
+            .for_each(|(name, script)| {
+                PatternScript::eval_script(script)
+                    .map_err(|err| format!("Error in evaluating example {name}: {err}"))
+                    .unwrap();
+            });
     }
 }
