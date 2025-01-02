@@ -1,9 +1,9 @@
 use egui::{Color32, TextStyle};
 use egui_extras::syntax_highlighting::{highlight, CodeTheme};
-use hooklib::examples;
+use hooklib::{examples, script::Script};
 
 pub struct CodeView {
-    pub code: String,
+    pub code: Script,
 }
 
 impl Default for CodeView {
@@ -15,8 +15,8 @@ impl Default for CodeView {
 }
 
 impl CodeView {
-    pub fn load_code(&mut self, code: &str) {
-        self.code = code.into();
+    pub fn load_code(&mut self, code: Script) {
+        self.code = code;
     }
 
     pub fn code_view_show(&mut self, ui: &mut egui::Ui) {
@@ -25,13 +25,19 @@ impl CodeView {
             .stroke(ui.visuals().window_stroke)
             .rounding(ui.visuals().window_rounding)
             .show(ui, |ui| {
+                let file_label = self.code.path()
+                    .and_then(|path| path.file_name())
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("<unsaved file>");
+                ui.label(file_label);
+                let code = self.code.source_mut();
                 egui::ScrollArea::vertical()
                     .max_height(ui.available_height() - 100.0)
                     .show(ui, |ui| {
-                        let code_rows = if self.code.ends_with('\n') || self.code.is_empty() {
-                            self.code.lines().count() + 1
+                        let code_rows = if code.ends_with('\n') || code.is_empty() {
+                            code.lines().count() + 1
                         } else {
-                            self.code.lines().count()
+                            code.lines().count()
                         };
                         let max_length = (code_rows.ilog10() + 1) as usize;
 
@@ -90,7 +96,7 @@ impl CodeView {
 
                             ui.add_sized(
                                 ui.available_size(),
-                                egui::TextEdit::multiline(&mut self.code)
+                                egui::TextEdit::multiline(code)
                                     .font(TextStyle::Monospace)
                                     .frame(false)
                                     .lock_focus(true)

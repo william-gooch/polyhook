@@ -9,11 +9,11 @@ pub const EXAMPLES: &[(&str, &str)] = &[
     ("Snowman", EXAMPLE_SNOWMAN),
 ];
 
-pub const EXAMPLE_FLAT: &str = include_str!("../examples/flat.ph");
-pub const EXAMPLE_SPIRAL_ROUNDS: &str = include_str!("../examples/spiral_rounds.ph");
-pub const EXAMPLE_JOINED_ROUNDS: &str = include_str!("../examples/joined_rounds.ph");
-pub const EXAMPLE_SPHERE: &str = include_str!("../examples/sphere.ph");
-pub const EXAMPLE_DYNAMIC_CIRCLE: &str = include_str!("../examples/dynamic_circle.ph");
-pub const EXAMPLE_SEW: &str = include_str!("../examples/sew.ph");
-pub const EXAMPLE_BEAR: &str = include_str!("../examples/bear.ph");
-pub const EXAMPLE_SNOWMAN: &str = include_str!("../examples/snowman.ph");
+pub const EXAMPLE_FLAT: &str           = concat!(file!(), "/../../examples/flat.ph");
+pub const EXAMPLE_SPIRAL_ROUNDS: &str  = concat!(file!(), "/../../examples/spiral_rounds.ph");
+pub const EXAMPLE_JOINED_ROUNDS: &str  = concat!(file!(), "/../../examples/joined_rounds.ph");
+pub const EXAMPLE_SPHERE: &str         = concat!(file!(), "/../../examples/sphere.ph");
+pub const EXAMPLE_DYNAMIC_CIRCLE: &str = concat!(file!(), "/../../examples/dynamic_circle.ph");
+pub const EXAMPLE_SEW: &str            = concat!(file!(), "/../../examples/sew.ph");
+pub const EXAMPLE_BEAR: &str           = concat!(file!(), "/../../examples/bear.ph");
+pub const EXAMPLE_SNOWMAN: &str        = concat!(file!(), "/../../examples/snowman.ph");

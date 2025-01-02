@@ -1,8 +1,4 @@
-fn inc() {
-	let s1 = dc_();
-	let s2 = dc();
-	[s1, s2]
-}
+import "common" as c;
 
 fn body() {
 magic_ring();
@@ -10,19 +6,19 @@ into(mark());
 rep 8 dc_();
 
 new_row();
-rep 8 inc();
+rep 8 c::inc();
 let hat_sews = row();
 
 new_row();
 rep 8 {
 	dc();
-	inc();
+	c::inc();
 };
 
 new_row();
 rep 6 {
 	rep 3 dc();
-	inc();
+	c::inc();
 };
 
 new_row();
@@ -32,7 +28,7 @@ rep 30 dc();
 new_row();
 rep 6 {
 	rep 4 dc();
-	inc();
+	c::inc();
 };
 
 let nose_sews = [
@@ -81,25 +77,25 @@ rep 4 {
 new_row();
 rep 10 {
 	dc();
-	inc();
+	c::inc();
 };
 
 new_row();
 rep 6 {
 	rep 4 dc();
-	inc();
+	c::inc();
 };
 
 new_row();
 rep 6 {
 	rep 5 dc();
-	inc();
+	c::inc();
 };
 
 new_row();
 rep 3 {
 	rep 13 dc();
-	inc();
+	c::inc();
 };
 
 rep 4 {
@@ -151,12 +147,12 @@ into(mark());
 rep 8 dc_();
 
 new_row();
-rep 8 inc();
+rep 8 c::inc();
 
 new_row();
 rep 8 {
 	dc();
-	inc();
+	c::inc();
 };
 
 new_row();
@@ -184,13 +180,13 @@ let body_sews = row();
 new_row();
 rep 8 {
 	dc();
-	inc();
+	c::inc();
 };
 
 new_row();
 rep 8 {
 	rep 2 dc();
-	inc();
+	c::inc();
 };
 
 new_row();
@@ -209,7 +205,7 @@ rep 4 dc_();
 new_row();
 rep 2 {
 	dc();
-	inc();
+	c::inc();
 };
 
 new_row();

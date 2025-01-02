@@ -1,11 +1,68 @@
 use std::{
-    collections::HashMap, error::Error, sync::{Arc, RwLock}
+    collections::HashMap, error::Error, fs::File, io::Read, path::{Path, PathBuf}, sync::{Arc, RwLock}
 };
 
 use glam::Vec3;
-use rhai::{ASTFlags, Dynamic, Engine, EvalAltResult, EvalContext, Expr, Expression, FnPtr, Ident, ImmutableString, Module, NativeCallContext, RhaiNativeFunc, Stmt, Variant, AST};
+use rhai::{module_resolvers::FileModuleResolver, ASTFlags, Dynamic, Engine, EvalAltResult, EvalContext, Expr, Expression, FnPtr, Ident, ImmutableString, Module, NativeCallContext, RhaiNativeFunc, Stmt, Variant, AST};
 
 use crate::pattern::{Part, Pattern, PatternError};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Script {
+    contents: String,
+    file_path: Option<PathBuf>,
+}
+
+impl Script {
+    pub fn new(contents: impl Into<String>) -> Self {
+        Self {
+            contents: contents.into(),
+            file_path: None,
+        }
+    }
+
+    pub fn new_with_path(contents: impl Into<String>, file_path: impl Into<PathBuf>) -> Self {
+        Self {
+            contents: contents.into(),
+            file_path: Some(file_path.into()),
+        }
+    }
+
+    pub fn load_file(path: &Path) -> std::io::Result<Self> {
+        println!("{path:?}");
+        let mut f = File::open(path)?;
+        let mut s = String::new();
+        f.read_to_string(&mut s)?;
+
+        Ok(Self::new_with_path(s, path))
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        self.file_path.as_deref()
+    }
+
+    pub fn set_path(&mut self, file_path: impl Into<PathBuf>) {
+        self.file_path = Some(file_path.into());
+    }
+
+    pub fn source(&self) -> &str {
+        &self.contents
+    }
+
+    pub fn source_mut(&mut self) -> &mut String {
+        &mut self.contents
+    }
+}
+
+impl<T> From<T> for Script
+where T: Into<String> {
+    fn from(value: T) -> Self {
+        Script {
+            contents: value.into(),
+            file_path: None,
+        }
+    }
+}
 
 pub struct PatternScript;
 
@@ -14,6 +71,7 @@ impl PatternScript {
         let mut engine = Engine::new();
 
         engine
+            .set_module_resolver(FileModuleResolver::new_with_extension("ph"))
             .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark")
             .register_custom_syntax(vec!["rep", "$expr$", "$expr$"], true, |context: &mut EvalContext, inputs: &[Expression]| {
                 let count = context.eval_expression_tree(&inputs[0])?.as_int().map_err(|err| format!("Invalid count type: {err}"))?;
@@ -155,9 +213,9 @@ impl PatternScript {
         engine
     }
 
-    pub fn get_script_exports(script: &str) -> Result<Vec<(ImmutableString, Dynamic)>, Box<dyn Error + Send + Sync>> {
+    pub fn get_script_exports(script: &Script) -> Result<Vec<(ImmutableString, Dynamic)>, Box<dyn Error + Send + Sync>> {
         let engine = PatternScript::create_compile_engine();
-        let ast = engine.compile(script)?;
+        let mut ast = engine.compile(&script.contents)?;
 
         let exports = ast.statements().iter()
             .filter_map(|stmt| -> Option<Result<(ImmutableString, Dynamic), Box<dyn Error + Send + Sync>>> {
@@ -177,9 +235,10 @@ impl PatternScript {
         Ok(exports)
     }
 
-    pub fn preprocess_script(script: &str, exports: &HashMap<ImmutableString, Dynamic>) -> Result<AST, Box<dyn Error + Send + Sync>> {
+    pub fn preprocess_script(script: &Script, exports: &HashMap<ImmutableString, Dynamic>) -> Result<AST, Box<dyn Error + Send + Sync>> {
         let engine = PatternScript::create_compile_engine();
-        let ast = engine.compile(script)?;
+        let mut ast = engine.compile(&script.contents)?;
+        if let Some(path) = &script.file_path { ast.set_source(path.to_str().unwrap()); }
 
         let new_stmts = ast.statements().iter()
             .map(|stmt| -> Result<Stmt, Box<dyn Error + Send + Sync>> {
@@ -203,13 +262,14 @@ impl PatternScript {
         Ok(new_ast)
     }
 
-    pub fn eval_script(script: &str) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
+    pub fn eval_script(script: &Script) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
         let pattern = Pattern::new();
         let part = Arc::new(RwLock::new(pattern.add_part()));
 
         {
             let engine = PatternScript::create_engine(pattern.clone(), part.clone());
-            let ast = engine.compile(script)?;
+            let mut ast = engine.compile(&script.contents)?;
+            if let Some(path) = &script.file_path { ast.set_source(path.to_str().unwrap()); }
             engine.run_ast(&ast)?
         }
 
@@ -217,7 +277,7 @@ impl PatternScript {
         Ok(pattern.into_inner())
     }
 
-    pub fn eval_script_with_exports(script: &str, exports: &HashMap<ImmutableString, Dynamic>) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
+    pub fn eval_script_with_exports(script: &Script, exports: &HashMap<ImmutableString, Dynamic>) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
         let pattern = Pattern::new();
         let part = Arc::new(RwLock::new(pattern.add_part()));
 
@@ -241,13 +301,13 @@ mod tests {
     #[test]
     fn test_script() {
         let pattern = PatternScript::eval_script(
-            r#"
+            &r#"
 rep 15 chain();
 rep 15 {
     turn();
     rep 15 dc();
 }
-        "#,
+        "#.into(),
         )
         .expect("Error in evaluating script");
 
@@ -257,8 +317,8 @@ rep 15 {
     #[test]
     fn test_all_examples() {
         examples::EXAMPLES.iter()
-            .for_each(|(name, script)| {
-                PatternScript::eval_script(script)
+            .for_each(|&(name, script)| {
+                PatternScript::eval_script(&script.into())
                     .map_err(|err| format!("Error in evaluating example {name}: {err}"))
                     .unwrap();
             });

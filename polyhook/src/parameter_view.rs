@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use egui::{Layout, Sense, Widget};
 use egui_extras::{Column, TableBuilder};
-use hooklib::script::PatternScript;
+use hooklib::script::{PatternScript, Script};
 use rhai::{Dynamic, ImmutableString};
 
 #[derive(Default)]
@@ -54,7 +54,7 @@ impl Widget for &mut ParameterView {
 }
 
 impl ParameterView {
-    pub fn refresh_parameters(&mut self, script: &str) {
+    pub fn refresh_parameters(&mut self, script: &Script) {
         let exports = PatternScript::get_script_exports(script).expect("Couldn't get script exports");
 
         exports.iter()

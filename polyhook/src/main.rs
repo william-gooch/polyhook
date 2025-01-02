@@ -5,7 +5,8 @@ mod parametric_view;
 mod parameter_view;
 
 use egui::{Color32, Ui, Vec2};
-use hooklib::examples::{self, EXAMPLE_FLAT};
+use hooklib::examples;
+use hooklib::script::{PatternScript, Script};
 use parameter_view::ParameterView;
 use parametric_view::ParametricView;
 use render::model::ModelData;
@@ -15,8 +16,8 @@ use rfd::FileDialog;
 use rhai::{Dynamic, ImmutableString};
 use std::collections::HashMap;
 use std::env::args;
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -24,14 +25,6 @@ use std::{
     error::Error,
     thread::{spawn, JoinHandle},
 };
-
-fn load_file(path: &Path) -> Result<String, String> {
-    let mut f = File::open(path).map_err(|err| err.to_string())?;
-    let mut s = String::new();
-    f.read_to_string(&mut s).map_err(|err| err.to_string())?;
-
-    Ok(s)
-}
 
 #[derive(Default)]
 struct RenderButton {
@@ -41,10 +34,10 @@ struct RenderButton {
 }
 
 impl RenderButton {
-    fn start_render(&mut self, code: String, parameters: HashMap<ImmutableString, Dynamic>) {
+    fn start_render(&mut self, code: Script, parameters: HashMap<ImmutableString, Dynamic>) {
         let is_2d_mode = self.is_2d_mode;
         self.thread = Some(spawn(move || {
-            let pattern = hooklib::script::PatternScript::eval_script_with_exports(code.as_ref(), &parameters);
+            let pattern = hooklib::script::PatternScript::eval_script_with_exports(&code, &parameters);
             match pattern {
                 Ok(pattern) => {
                     if is_2d_mode {
@@ -72,7 +65,7 @@ impl RenderButton {
         }
     }
 
-    fn show<F: Fn() -> (String, HashMap<ImmutableString, Dynamic>)>(&mut self, ui: &mut Ui, get_code: F) -> Option<ModelData> {
+    fn show<F: Fn() -> (Script, HashMap<ImmutableString, Dynamic>)>(&mut self, ui: &mut Ui, get_code: F) -> Option<ModelData> {
         if let Some(err) = &self.err {
             let err_str = format!("{err}");
             ui.horizontal(|ui| {
@@ -140,20 +133,25 @@ impl App {
         .into();
         ctx.set_style(style);
 
-        let code = args()
+        let (code, starting_pattern) = args()
             .nth(1)
             .and_then(|s| {
-                load_file(Path::new(&s))
+                let script = Script::load_file(Path::new(&s))
                     .inspect_err(|err| eprintln!("Couldn't open file: {}", err))
-                    .ok()
+                    .ok()?;
+
+                let pattern = PatternScript::eval_script(&script)
+                    .inspect_err(|err| eprintln!("{err}"))
+                    .ok()?;
+                Some((script, Some(pattern)))
             })
-            .unwrap_or(EXAMPLE_FLAT.into());
+            .unwrap_or((Script::new(""), None));
 
         Self {
             code_view: code_view::CodeView { code },
             parametric_view: Default::default(),
             parameter_view: Default::default(),
-            renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap()).unwrap(),
+            renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap(), starting_pattern).unwrap(),
             render_button: Default::default(),
             orbit: Orbit {
                 phi: 0.0,
@@ -170,22 +168,54 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("New").clicked() {
+                        let script = Script::new("");
+                        self.code_view.load_code(script);
+                        ui.close_menu();
+                    }
                     if ui.button("Open").clicked() {
                         let file = FileDialog::new()
                             .add_filter("polyhook", &["ph"])
                             .set_directory(".")
                             .pick_file();
-                        file.and_then(|file| {
-                            load_file(file.as_path())
-                                .inspect_err(|err| eprintln!("Couldn't load file: {err}"))
-                                .ok()
-                        })
-                        .inspect(|code: &String| {
-                            self.code_view.load_code(code.as_str());
-                        });
+                        let script = file
+                            .and_then(|file| {
+                                Script::load_file(file.as_path())
+                                    .inspect_err(|err| eprintln!("Couldn't load file: {err}"))
+                                    .ok()
+                            });
+                        if let Some(script) = script {
+                            self.code_view.load_code(script)
+                        }
                         ui.close_menu();
                     }
                     if ui.button("Save").clicked() {
+                        let file = self.code_view.code.path()
+                            .map(|path| path.to_path_buf())
+                            .or_else(|| {
+                                FileDialog::new()
+                                    .add_filter("polyhook", &["ph"])
+                                    .set_directory(".")
+                                    .save_file()
+                            });
+                        file.and_then(|file| {
+                            let mut f = OpenOptions::new()
+                                .write(true)
+                                .create(true)
+                                .truncate(true)
+                                .open(&file)
+                                .inspect_err(|err| eprintln!("Couldn't open file: {err}"))
+                                .ok()?;
+                            let code = self.code_view.code.source();
+                            f.write(code.as_bytes())
+                                .inspect_err(|err| eprintln!("Couldn't write file: {err}"))
+                                .ok()?;
+                            self.code_view.code.set_path(&file);
+                            Some(())
+                        });
+                        ui.close_menu();
+                    }
+                    if ui.button("Save As").clicked() {
                         let file = FileDialog::new()
                             .add_filter("polyhook", &["ph"])
                             .set_directory(".")
@@ -195,22 +225,28 @@ impl eframe::App for App {
                                 .write(true)
                                 .create(true)
                                 .truncate(true)
-                                .open(file.as_path())
+                                .open(&file)
                                 .inspect_err(|err| eprintln!("Couldn't open file: {err}"))
                                 .ok()?;
                             let code = &self.code_view.code;
-                            f.write(code.as_bytes())
+                            f.write(code.source().as_bytes())
                                 .inspect_err(|err| eprintln!("Couldn't write file: {err}"))
                                 .ok()?;
+                            self.code_view.code.set_path(&file);
                             Some(())
                         });
                         ui.close_menu();
                     }
                 });
                 ui.menu_button("Examples", |ui| {
-                    for &(name, code) in examples::EXAMPLES {
+                    for &(name, file) in examples::EXAMPLES {
                         if ui.button(name).clicked() {
-                            self.code_view.load_code(code);
+                            let script = Script::load_file(Path::new(file))
+                                .inspect_err(|err| eprintln!("Couldn't load file: {err}"))
+                                .ok();
+                            if let Some(script) = script {
+                                self.code_view.load_code(script)
+                            }
                             ui.close_menu();
                         }
                     }
@@ -255,7 +291,7 @@ impl eframe::App for App {
                         if self.tab == AppTab::Code || self.tab == AppTab::Parameters {
                             (self.code_view.code.clone(), self.parameter_view.parameters.clone())
                         } else {
-                            (self.parametric_view.get_code(), Default::default())
+                            (self.parametric_view.get_code().into(), Default::default())
                         }
                     });
                     if let Some(new_model) = new_model {
