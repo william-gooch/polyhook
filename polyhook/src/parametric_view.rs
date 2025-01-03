@@ -2,8 +2,11 @@ use egui::{Color32, Id, InnerResponse, Pos2, Rect, Sense, Stroke, Vec2, Widget};
 use hooklib::parametric::{example_flat, Identifier, Operation, OperationRef, ParametricPattern};
 use std::{iter::{once, Once}, time::{Duration, Instant}};
 
+const FUNCTIONS: &[&str] = &["chain", "dc", "turn", "new_row"];
+
 pub struct ParametricView {
     cached_identifiers: Vec<Identifier>,
+    valid_functions: Vec<Identifier>,
     pattern: ParametricPattern,
 }
 
@@ -11,6 +14,7 @@ impl Default for ParametricView {
     fn default() -> Self {
         Self {
             cached_identifiers: Vec::default(),
+            valid_functions: FUNCTIONS.iter().map(|&func| func.into()).collect(),
             pattern: example_flat(),
         }
     }
@@ -138,10 +142,10 @@ impl ParametricView {
                 let popup_resp = ui.vertical_centered_justified(|ui| {
                     if ui.button("Define").clicked() {
                         Some(OperationType::Define)
-                    } else if ui.button("Literal").clicked() {
-                        Some(OperationType::Literal)
-                    } else if ui.button("Variable").clicked() {
-                        Some(OperationType::Variable)
+                    // } else if ui.button("Literal").clicked() {
+                    //     Some(OperationType::Literal)
+                    // } else if ui.button("Variable").clicked() {
+                    //     Some(OperationType::Variable)
                     } else if ui.button("Call").clicked() {
                         Some(OperationType::Call)
                     } else if ui.button("Repeat").clicked() {
@@ -209,7 +213,9 @@ impl ParametricView {
                     .fill(Color32::from_white_alpha(1))
                     .show(ui, |ui| {
                         let before_operations = once({
-                            let InnerResponse { inner: add, response: add_resp } = self.add_step_ui(ui, ui.interact(ui.max_rect(), ui.id(), Sense::hover()), 0);
+                            let mut rect = ui.max_rect();
+                            rect.set_bottom(rect.top() + 20.0);
+                            let InnerResponse { inner: add, response: add_resp } = self.add_step_ui(ui, ui.interact(rect, ui.next_auto_id(), Sense::hover()), 0);
                             InnerResponse::new(add.map(Instruction::AddStep), add_resp)
                         });
                         let after_operations = vec.iter_mut()
@@ -274,7 +280,13 @@ impl ParametricView {
             }
             Operation::Call(identifier) => {
                 ui.horizontal(|ui| {
-                    ui.label(format!("{identifier}"));
+                    egui::ComboBox::from_id_salt(operation)
+                        .selected_text(identifier.to_string())
+                        .show_ui(ui, |ui| {
+                            self.valid_functions.iter().for_each(|option| {
+                                ui.selectable_value(identifier, option.clone(), option.to_string());
+                            });
+                        });
                     ui.allocate_space([ui.available_width(), 0.0].into());
                 })
                 .response
@@ -283,6 +295,18 @@ impl ParametricView {
                 let resp_1 = ui.horizontal(|ui| {
                     ui.label("do")
                         .union(self.operation_ui(ui, *n))
+                        .union({
+                            let is_literal = self.pattern.get(*n).is_some_and(|n| matches!(*n, Operation::Literal(_)));
+                            let resp = ui.button(if is_literal { "(L -> V)" } else { "(V -> L)" });
+                            if resp.clicked() {
+                                if is_literal {
+                                    *n = self.pattern.variable("select variable...");
+                                } else {
+                                    *n = self.pattern.literal(0);
+                                }
+                            }
+                            resp
+                        })
                         .union(ui.label("times:"))
                 });
 

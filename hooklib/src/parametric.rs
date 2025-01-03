@@ -110,7 +110,7 @@ impl ParametricPattern {
                 v.iter().map(|op| self.op_to_script(*op)).join(";\n")
             ),
             Operation::Repeat(n, op) => {
-                format!("{} # || {}", self.op_to_script(*n), self.op_to_script(*op))
+                format!("rep {} {}", self.op_to_script(*n), self.op_to_script(*op))
             }
         }
     }
