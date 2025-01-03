@@ -70,6 +70,16 @@ impl ParametricPattern {
         new_ref
     }
 
+    pub fn remove_node(&self, operation: OperationRef) {
+        self.walk_mut(&mut |op| {
+            if let Operation::Seq(ref mut v) = op {
+                if let Some(to_remove) = v.iter().position(|op| operation == *op) {
+                    v.remove(to_remove);
+                }
+            }
+        });
+    }
+
     pub fn define(&self, name: impl Into<Identifier>, op: OperationRef) -> OperationRef {
         self.add_node(Operation::Define(name.into(), op))
     }
@@ -130,9 +140,31 @@ impl ParametricPattern {
     pub fn walk(&self, f: &mut dyn FnMut(&Operation)) {
         self.op_walk(self.root.expect("No root node"), f);
     }
+
+    fn op_walk_mut(&self, op_id: OperationRef, f: &mut dyn FnMut(&mut Operation)) {
+        let op = &mut *self.nodes[op_id.0].borrow_mut();
+        f(op);
+        match op {
+            Operation::Define(_, operation) => self.op_walk_mut(*operation, f),
+            Operation::Seq(ops) => {
+                for op in ops.iter() {
+                    self.op_walk_mut(*op, f);
+                }
+            }
+            Operation::Repeat(n, op) => {
+                self.op_walk_mut(*n, f);
+                self.op_walk_mut(*op, f);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn walk_mut(&self, f: &mut dyn FnMut(&mut Operation)) {
+        self.op_walk_mut(self.root.expect("No root node"), f);
+    }
 }
 
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq)]
 pub struct OperationRef(usize);
 
 pub enum Operation {

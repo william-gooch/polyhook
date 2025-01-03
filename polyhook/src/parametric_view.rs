@@ -1,6 +1,6 @@
-use egui::{Color32, Stroke, Widget};
+use egui::{Color32, Id, InnerResponse, Pos2, Rect, Sense, Stroke, Vec2, Widget};
 use hooklib::parametric::{example_flat, Identifier, Operation, OperationRef, ParametricPattern};
-use std::time::{Duration, Instant};
+use std::{iter::{once, Once}, time::{Duration, Instant}};
 
 pub struct ParametricView {
     cached_identifiers: Vec<Identifier>,
@@ -65,6 +65,11 @@ struct AddStep {
     kind: OperationType,
 }
 
+enum Instruction {
+    AddStep(AddStep),
+    RemoveStep(usize),
+}
+
 impl ParametricView {
     pub fn get_code(&self) -> String {
         self.pattern.to_script()
@@ -107,7 +112,7 @@ impl ParametricView {
         ui: &mut egui::Ui,
         resp: egui::Response,
         at: usize,
-    ) -> egui::InnerResponse<Option<AddStep>> {
+    ) -> InnerResponse<Option<AddStep>> {
         let popup_id = ui.make_persistent_id(resp.id.with(at).with("new_step_open"));
         let popup_open = ui.data(|d| d.get_temp::<bool>(popup_id)).unwrap_or(false);
 
@@ -151,7 +156,7 @@ impl ParametricView {
                         *v = false;
                     });
                 }
-                Some(egui::InnerResponse::new(
+                Some(InnerResponse::new(
                     popup_resp.inner.map(|t| AddStep { at, kind: t }),
                     popup_resp.response,
                 ))
@@ -174,9 +179,26 @@ impl ParametricView {
                 }
             });
 
-            egui::InnerResponse::new(to_add.and_then(|r| r.inner), total_resp)
+            InnerResponse::new(to_add.and_then(|r| r.inner), total_resp)
         } else {
-            egui::InnerResponse::new(None, resp)
+            InnerResponse::new(None, resp)
+        }
+    }
+
+    fn remove_step_ui(
+        &self,
+        ui: &mut egui::Ui,
+        in_rect: Rect,
+        at: usize,
+    ) -> InnerResponse<Option<usize>> {
+        let rect = Rect::from_center_size(in_rect.right_top() + Vec2::new(-10.0, 10.0), Vec2::new(10.0, 10.0));
+        let resp = ui.put(rect, egui::Button::new("X"));
+        ui.advance_cursor_after_rect(in_rect);
+
+        if resp.clicked() {
+            InnerResponse::new(Some(at), resp)
+        } else {
+            InnerResponse::new(None, resp)
         }
     }
 
@@ -186,24 +208,34 @@ impl ParametricView {
                 let resp = egui::Frame::default()
                     .fill(Color32::from_white_alpha(1))
                     .show(ui, |ui| {
-                        vec.iter_mut()
+                        let before_operations = once({
+                            let InnerResponse { inner: add, response: add_resp } = self.add_step_ui(ui, ui.interact(ui.max_rect(), ui.id(), Sense::hover()), 0);
+                            InnerResponse::new(add.map(Instruction::AddStep), add_resp)
+                        });
+                        let after_operations = vec.iter_mut()
                             .enumerate()
                             .map(|(i, op)| {
                                 let resp = self.operation_ui(ui, *op);
-                                self.add_step_ui(ui, resp, i)
-                            })
+                                let InnerResponse { inner: add, response: add_resp } = self.add_step_ui(ui, resp, i + 1);
+                                if let Some(add) = add {
+                                    InnerResponse::new(Some(Instruction::AddStep(add)), add_resp)
+                                } else {
+                                    let InnerResponse { inner: remove, response: remove_resp } = self.remove_step_ui(ui, add_resp.rect, i);
+                                    InnerResponse::new(remove.map(Instruction::RemoveStep), remove_resp | add_resp)
+                                }
+                            });
+                        before_operations.chain(after_operations)
                             .reduce(|a, b| {
-                                egui::InnerResponse::new(
+                                InnerResponse::new(
                                     a.inner.or(b.inner),
                                     a.response | b.response,
                                 )
                             })
-                            .unwrap_or_else(|| egui::InnerResponse::new(None, ui.response()))
+                            .unwrap_or_else(|| InnerResponse::new(None, ui.response()))
                     })
                     .inner;
 
-                if let Some(add) = resp.inner {
-                    println!("Add an operation after {}", add.at);
+                if let Some(Instruction::AddStep(add)) = resp.inner {
                     let op_to_add = match add.kind {
                         OperationType::Define => {
                             self.pattern.define("new_variable", self.pattern.literal(0))
@@ -215,7 +247,9 @@ impl ParametricView {
                             .pattern
                             .repeat(self.pattern.literal(0), self.pattern.seq([])),
                     };
-                    vec.insert(add.at + 1, op_to_add);
+                    vec.insert(add.at, op_to_add);
+                } else if let Some(Instruction::RemoveStep(i)) = resp.inner {
+                    vec.remove(i);
                 }
                 resp.response
             }
