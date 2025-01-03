@@ -317,8 +317,10 @@ rep 15 {
     #[test]
     fn test_all_examples() {
         examples::EXAMPLES.iter()
-            .for_each(|&(name, script)| {
-                PatternScript::eval_script(&script.into())
+            .for_each(|&(name, path)| {
+                let path = Path::new("../").join(Path::new(path));
+                let script = Script::load_file(&path).unwrap();
+                PatternScript::eval_script(&script)
                     .map_err(|err| format!("Error in evaluating example {name}: {err}"))
                     .unwrap();
             });

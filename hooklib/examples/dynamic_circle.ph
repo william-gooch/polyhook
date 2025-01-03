@@ -5,15 +5,15 @@ fn inc() {
 
 let ch_sp = chain_space(|| {
     let start = mark();
-    2 # chain;
+    rep 2 chain();
     ss(start);
 });
 
 into(ch_sp);
-6 # dc_;
+rep 6 dc_();
 
 new_row();
-6 # || {
+rep 6 {
     inc();
 };
 
@@ -29,10 +29,10 @@ rep 15 {
 
 	let round_c = 0.0;
 	for i in 1..=incs {
-        (steps - 1) # dc;
+        rep (steps - 1) dc();
         inc();
 		round_c += steps + 1;
 	}
-	rem # dc;
+	rep rem dc();
 	round_size = round_c;
 }

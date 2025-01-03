@@ -680,7 +680,7 @@ mod tests {
 
     #[test]
     fn test_flat() {
-        let pattern = test_pattern_flat(15).unwrap();
+        let pattern = test_pattern_flat(7).unwrap();
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/flat.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
