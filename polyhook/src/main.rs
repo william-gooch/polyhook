@@ -1,14 +1,14 @@
 mod render;
 
 mod code_view;
-mod parametric_view;
+mod visual_view;
 mod parameter_view;
 
 use egui::{Color32, Ui, Vec2};
 use hooklib::examples;
 use hooklib::script::{PatternScript, Script};
 use parameter_view::ParameterView;
-use parametric_view::ParametricView;
+use visual_view::VisualView;
 use render::model::ModelData;
 use render::pattern_model::{model_from_pattern, model_from_pattern_2d};
 use render::transform::Orbit;
@@ -102,14 +102,14 @@ impl RenderButton {
 
 #[derive(PartialEq)]
 enum AppTab {
-    Parametric,
+    Visual,
     Parameters,
     Code,
 }
 
 struct App {
     code_view: code_view::CodeView,
-    parametric_view: ParametricView,
+    visual_view: VisualView,
     parameter_view: ParameterView,
     renderer: render::Renderer,
     render_button: RenderButton,
@@ -149,7 +149,7 @@ impl App {
 
         Self {
             code_view: code_view::CodeView { code },
-            parametric_view: Default::default(),
+            visual_view: Default::default(),
             parameter_view: Default::default(),
             renderer: render::Renderer::new(cc.wgpu_render_state.as_ref().unwrap(), starting_pattern).unwrap(),
             render_button: Default::default(),
@@ -272,17 +272,17 @@ impl eframe::App for App {
                             self.tab = AppTab::Parameters;
                         }
                         if ui
-                            .selectable_label(self.tab == AppTab::Parametric, "Parametric View")
+                            .selectable_label(self.tab == AppTab::Visual, "Visual View")
                             .clicked()
                         {
-                            self.tab = AppTab::Parametric;
+                            self.tab = AppTab::Visual;
                         }
                     });
 
                     if self.tab == AppTab::Code {
                         self.code_view.code_view_show(ui);
-                    } else if self.tab == AppTab::Parametric {
-                        ui.add(&mut self.parametric_view);
+                    } else if self.tab == AppTab::Visual {
+                        ui.add(&mut self.visual_view);
                     } else if self.tab == AppTab::Parameters {
                         ui.add(&mut self.parameter_view);
                     }
@@ -291,7 +291,7 @@ impl eframe::App for App {
                         if self.tab == AppTab::Code || self.tab == AppTab::Parameters {
                             (self.code_view.code.clone(), self.parameter_view.parameters.clone())
                         } else {
-                            (self.parametric_view.get_code().into(), Default::default())
+                            (self.visual_view.get_code().into(), Default::default())
                         }
                     });
                     if let Some(new_model) = new_model {

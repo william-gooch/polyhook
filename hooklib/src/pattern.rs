@@ -118,7 +118,7 @@ enum SkipDirection {
     Reverse,
 }
 
-/// Gauge is the ratio of stitches in a given length to rows in a given length.
+/// Gauge is the ratio of rows in a given length to stitches in a given length.
 pub const GAUGE: f32 = 15.0 / 18.5;
 
 /// Epsilon is just a really small distance, used for stitches that should be really close together (e.g. slips and sews)

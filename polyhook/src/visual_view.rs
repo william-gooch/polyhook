@@ -4,13 +4,13 @@ use std::{iter::{once, Once}, time::{Duration, Instant}};
 
 const FUNCTIONS: &[&str] = &["chain", "dc", "turn", "new_row"];
 
-pub struct ParametricView {
+pub struct VisualView {
     cached_identifiers: Vec<Identifier>,
     valid_functions: Vec<Identifier>,
     pattern: ParametricPattern,
 }
 
-impl Default for ParametricView {
+impl Default for VisualView {
     fn default() -> Self {
         Self {
             cached_identifiers: Vec::default(),
@@ -20,7 +20,7 @@ impl Default for ParametricView {
     }
 }
 
-impl Widget for &mut ParametricView {
+impl Widget for &mut VisualView {
     fn ui(self, ui: &mut egui::Ui) -> egui::Response {
         let r = egui::ScrollArea::vertical()
             .max_height(ui.available_height() - 50.0)
@@ -74,7 +74,7 @@ enum Instruction {
     RemoveStep(usize),
 }
 
-impl ParametricView {
+impl VisualView {
     pub fn get_code(&self) -> String {
         self.pattern.to_script()
     }
