@@ -141,20 +141,6 @@ pub struct Pattern {
     graph: RwLock<graph::DiGraph<Node, EdgeType>>,
 }
 
-#[derive(Debug)]
-pub struct Part {
-    parent: Arc<Pattern>,
-
-    start: graph::NodeIndex,
-    prev: graph::NodeIndex,
-    insert: Option<graph::NodeIndex>,
-    current_ch_sp: Option<Vec<graph::NodeIndex>>,
-    rows: Vec<Vec<graph::NodeIndex>>,
-    direction: SkipDirection,
-    ignore_for_row: bool,
-    current_color: Vec3,
-}
-
 impl PartialEq for Pattern {
     fn eq(&self, other: &Self) -> bool {
         petgraph::algo::is_isomorphic_matching(
@@ -303,6 +289,20 @@ impl Pattern {
 
         format!("digraph {{\n    normalize = 180\n{:?}}}", dot)
     }
+}
+
+#[derive(Debug)]
+pub struct Part {
+    parent: Arc<Pattern>,
+
+    start: graph::NodeIndex,
+    prev: graph::NodeIndex,
+    insert: Option<graph::NodeIndex>,
+    current_ch_sp: Option<Vec<graph::NodeIndex>>,
+    rows: Vec<Vec<graph::NodeIndex>>,
+    direction: SkipDirection,
+    ignore_for_row: bool,
+    current_color: Vec3,
 }
 
 impl Part {
