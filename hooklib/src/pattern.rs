@@ -275,14 +275,14 @@ impl Pattern {
                 Config::GraphContentOnly,
             ],
             &|_g, e| {
+                let len: f32 = (*e.weight()).into();
                 match e.weight() {
-                    EdgeType::Previous => "len = 1.0",
-                    EdgeType::Insert => r#"len = 1.0 style = "dotted" arrowhead="vee""#,
-                    EdgeType::Slip => "len = 1.0 style = \"dashed\"",
-                    EdgeType::Neighbour => "len = 1.0 style = \"invis\"",
-                    EdgeType::Sew => "len = 1.0 style = \"dashed\"",
+                    EdgeType::Previous => format!("len = {len}"),
+                    EdgeType::Insert => format!(r#"len = {len} style = "dotted" arrowhead="vee""#),
+                    EdgeType::Slip => format!("len = {len} style = \"dashed\""),
+                    EdgeType::Neighbour => format!("len = {len} style = \"invis\""),
+                    EdgeType::Sew => format!("len = {len} style = \"dashed\""),
                 }
-                .into()
             },
             &node_attr_getter,
         );
