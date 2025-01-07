@@ -80,14 +80,14 @@ impl Node {
         Self::ChainSpace
     }
 
-    fn is_turn(&self) -> bool {
+    pub fn is_turn(&self) -> bool {
         match self {
             Node::Stitch { turn, .. } => *turn,
             _ => false,
         }
     }
 
-    fn stitch_type(&self) -> &'static str {
+    pub fn stitch_type(&self) -> &'static str {
         match self {
             Node::Stitch { ty, .. } => ty,
             Node::ChainSpace => "ch_sp",

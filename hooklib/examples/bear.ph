@@ -8,12 +8,10 @@ fn inc() {
 	dc();
 }
 
-let start = mark();
-rep 2 chain();
+magic_ring();
 
 // row 1
 new_row();
-into(start);
 rep 6 dc_();
 
 // row 2

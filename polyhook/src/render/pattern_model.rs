@@ -78,6 +78,26 @@ fn model_from_graph(
                     };
 
                     create_rect(*source_pos, target_pos, tangent, tangent.length(), color);
+                } else if *e.weight().1 == EdgeType::Previous && node_type.stitch_type() == "ch" {
+                    let target_pos = graph.node_weight(e.target()).unwrap().0;
+
+                    let tangent_1 = graph
+                        .edges_directed(node, Incoming)
+                        .find(|e| *e.weight().1 == EdgeType::Insert)
+                        .map(|e| source_pos - graph.node_weight(e.source()).unwrap().0)
+                        .unwrap_or(Vec3::X);
+                    let tangent_2 = graph
+                        .edges_directed(node, Incoming)
+                        .find(|e| *e.weight().1 == EdgeType::Previous)
+                        .map(|e| source_pos - graph.node_weight(e.source()).unwrap().0)
+                        .unwrap_or(Vec3::X);
+                    let tangent = if tangent_1.dot(tangent_2) <= 0.0 {
+                        (tangent_1 - tangent_2) / 2.0
+                    } else {
+                        (tangent_1 + tangent_2) / 2.0
+                    };
+
+                    create_rect(*source_pos, target_pos, tangent, tangent.length(), color);
                 }
             });
         });
