@@ -113,14 +113,24 @@ where
             start,
             end,
             d: cost,
-            w: 1.0 / (cost * cost), // the weight w of a term is the inverse square cost.
+            w: f32::powi(cost, -2), // the weight w of a term is the inverse square cost.
         })
         .collect::<Vec<_>>();
 
-    terms.shuffle(&mut rng); // each iteration, randomize the list of terms
+    // shuffle the terms twice and alternate between both shuffles
+    let mut terms_order_1 = (0..terms.len()).collect::<Vec<_>>();
+    terms_order_1.shuffle(&mut rng);
+    let mut terms_order_2 = (0..terms.len()).collect::<Vec<_>>();
+    terms_order_2.shuffle(&mut rng);
+    let mut terms_orders = {
+        std::iter::repeat([&terms_order_1, &terms_order_2]).flatten()
+    };
+
     let etas: Vec<f32> = schedule(&terms, SGD_ITERS);
     for eta in etas {
-        for term in terms.iter_mut() {
+        let term_idxs = terms_orders.next().unwrap();
+        for &term_idx in term_idxs.iter() {
+            let term = &terms[term_idx];
             let mu = f32::min(eta * term.w, 1.0); // limit the step size to at most 1.
             let p_i: C = graph[term.start];
             let p_j: C = graph[term.end];
@@ -134,8 +144,6 @@ where
             graph[term.start] = p_i - rv;
             graph[term.end] = p_j + rv;
         }
-
-        terms.shuffle(&mut rng);
     }
 
     graph
