@@ -461,14 +461,13 @@ impl Part {
 
     pub fn dec(&mut self) -> Result<NodeIndex, PatternError> {
         let new_node = self.graph_mut().add_node(Node::decrease(self.current_color));
-        let insert = self.insert.ok_or(PatternError::NoInsert)?;
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
         self.graph_mut()
-            .add_edge(new_node, insert, EdgeType::Insert);
+            .add_edge(new_node, self.insert.ok_or(PatternError::NoInsert)?, EdgeType::Insert);
         self.skip()?;
         self.graph_mut()
-            .add_edge(new_node, insert, EdgeType::Insert);
+            .add_edge(new_node, self.insert.ok_or(PatternError::NoInsert)?, EdgeType::Insert);
         self.skip()?;
 
         self.prev = new_node;
