@@ -708,4 +708,28 @@ mod tests {
         let mut file = std::fs::File::create(format!("{TEST_DIR}/sphere.dot")).unwrap();
         write!(file, "{}", pattern.to_graphviz()).unwrap();
     }
+
+    #[test]
+    fn test_triangulated() {
+        use petgraph::dot::{Dot, Config};
+
+        let pattern = test_pattern_flat(7).unwrap();
+        let triangulated = pattern.triangulated_graph();
+        let dot = Dot::with_attr_getters(
+            &triangulated,
+            &[
+                Config::EdgeNoLabel,
+                Config::NodeNoLabel,
+                Config::GraphContentOnly,
+            ],
+            &|_g, e| {
+                let len: f32 = *e.weight();
+                format!("len = {len}")
+            },
+            &|_, _| "shape = \"point\" label = \"\"".into()
+        );
+
+        let mut file = std::fs::File::create(format!("{TEST_DIR}/triangulated.dot")).unwrap();
+        write!(file, "digraph {{\n    normalize = 180\n{:?}}}", dot).unwrap();
+    }
 }

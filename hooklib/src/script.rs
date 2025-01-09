@@ -71,6 +71,7 @@ impl PatternScript {
         let mut engine = Engine::new();
 
         engine
+            .set_max_expr_depths(64, 64)
             .set_module_resolver(FileModuleResolver::new_with_extension("ph"))
             .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark")
             .register_custom_syntax(vec!["rep", "$expr$", "$expr$"], true, |context: &mut EvalContext, inputs: &[Expression]| {
