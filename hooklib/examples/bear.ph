@@ -75,9 +75,13 @@ rep 3 dc();
 
 // row 12
 new_row();
-chain_space(|| {
-    rep 4 {
-        dc();
-        dec();
-    }
-})
+rep 4 {
+    dc();
+    dec();
+};
+
+// row 13
+new_row();
+rep 4 {
+	dec();
+};
