@@ -159,3 +159,26 @@ pub fn model_from_pattern_2d(pattern: &Pattern) -> ModelData {
 
     model_from_graph(graph)
 }
+
+#[cfg(test)]
+mod tests {
+    use hooklib::pattern::test_pattern_flat;
+
+    use super::*;
+
+    #[test]
+    fn test_runtime() {
+        // Requirement: a pattern of less than 2500 nodes shouldn't take more than 30s to compute.
+
+        // Flat pattern should have at least 49 * 49 = 2401 nodes
+        // (more including foundation chain)
+        let pattern = test_pattern_flat(49).unwrap();
+        assert!(pattern.graph().node_count() <= 2500);
+
+        let start_time = std::time::Instant::now();
+        let model = model_from_pattern(&pattern);
+        let elapsed = start_time.elapsed().as_secs_f64();
+
+        assert!(elapsed <= 30.0);
+    }
+}
