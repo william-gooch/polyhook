@@ -127,9 +127,14 @@ fn model_from_graph(
 }
 
 pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
+    println!("Number of nodes: {}", pattern.graph().node_count());
+    let start_time = std::time::Instant::now();
     let mut graph = sgd::<Vec3, _, _>(&pattern.triangulated_graph());
-    sgd::fdg(&mut graph);
+    println!("SGD took {}s", start_time.elapsed().as_secs_f32());
+    // sgd::fdg(&mut graph);
+    // println!("FDG took {}s", start_time.elapsed().as_secs_f32());
     sgd::normalize(&mut graph);
+    println!("Norm took {}s", start_time.elapsed().as_secs_f32());
 
     let orig_graph = pattern.graph();
     let graph = orig_graph.map(

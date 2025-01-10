@@ -152,30 +152,21 @@ where
 const FDG_ITERS: u32 = 10;
 const STEP_SIZE: f32 = 0.1;
 const ATTRACTIVE_FORCE: f32 = 2.0;
-const REPULSIVE_FORCE: f32 = 0.0;
 
 pub fn fdg(g: &mut Graph<Vec3, f32, Undirected>) {
     for _ in 1..=FDG_ITERS {
         let new_pos = g
             .node_references()
             .map(|(n1, p1)| {
-                let force: Vec3 = g
-                    .node_references()
-                    .filter_map(|(n2, p2)| {
-                        if n2 == n1 {
-                            None
-                        } else {
-                            let d = p2 - p1;
-                            let f = if let Some(e) = g.edges_connecting(n1, n2).next() {
-                                ATTRACTIVE_FORCE * f32::log10(d.length() / e.weight())
-                            } else {
-                                -REPULSIVE_FORCE / d.length_squared()
-                            };
-                            Some(f * d.normalize())
-                        }
+                let force: Vec3 = g.edges(n1)
+                    .map(|e| {
+                        let n2 = if e.source() == n1 { e.target() } else { e.source() };
+                        let p2 = g.node_weight(n2).unwrap();
+                        let d = p2 - p1;
+                        let f = ATTRACTIVE_FORCE * f32::log10(d.length() / e.weight());
+                        f * d.normalize()
                     })
                     .sum();
-
                 (n1, g.node_weight(n1).unwrap() + (STEP_SIZE * force))
             })
             .collect::<Vec<_>>();
