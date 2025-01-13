@@ -17,22 +17,24 @@ rep 6 {
     inc();
 };
 
-let round_size = 12.0;
+let round_size = 12;
 let round_target = 12.0;
 rep 15 {
 	new_row();
-	
-	round_target += 6.28 * (15.0 / 18.5);
-	let incs = floor(round_target - round_size).to_int();
-	let steps = floor(round_size / incs).to_int();
-	let rem = (round_size % incs).to_int();
 
-	let round_c = 0.0;
+	round_target += 6.28 * (15.0 / 18.5);
+	let incs = round(round_target).to_int() - round_size;
+	let steps = round_size / incs;
+	let rem = round_size % incs;
+
+
+	let round_c = 0;
 	for i in 1..=incs {
         rep (steps - 1) dc();
         inc();
 		round_c += steps + 1;
 	}
 	rep rem dc();
+	round_c += rem;
 	round_size = round_c;
 }

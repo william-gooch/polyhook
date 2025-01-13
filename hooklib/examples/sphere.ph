@@ -3,14 +3,8 @@ fn inc() {
     dc();
 }
 
-let ch_sp = chain_space(|| {
-    let start = mark();
-    rep 2 chain();
-    ss(start);
-});
-
-new_row();
-into(ch_sp);
+magic_ring();
+into(mark());
 rep 6 dc_();
 
 let j = 1;
