@@ -1,6 +1,6 @@
 // Pattern (c) Alexandra Halsey
 // Available at: https://www.withalexofficialblog.com/2018/06/crescent-moon-free-pattern.html
-// Creative Commons Attribution ShareAlike License https://creativecommons.org/licenses/by-nc-nd/3.0/
+// Creative Commons Attribution ShareAlike License https://creativecommons.org/licenses/by-sa/3.0/
 
 magic_ring();
 into(mark());
