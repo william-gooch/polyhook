@@ -165,6 +165,9 @@ mod tests {
     use hooklib::pattern::test_pattern_flat;
 
     use super::*;
+    use std::io::Write;
+
+    const TEST_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/test_out");
 
     #[test]
     fn test_runtime() {
@@ -180,5 +183,27 @@ mod tests {
         let elapsed = start_time.elapsed().as_secs_f64();
 
         assert!(elapsed <= 30.0);
+    }
+
+    #[test]
+    #[ignore = "Analyzes the runtime for many different graph sizes, takes a few minutes to run."]
+    fn test_analyze_runtime() {
+        // Requirement: a pattern of less than 2500 nodes shouldn't take more than 30s to compute.
+
+        // Flat pattern should have at least 49 * 49 = 2401 nodes
+        // (more including foundation chain)
+
+        let mut file = std::fs::File::create(format!("{TEST_DIR}/runtime.csv")).unwrap();
+        (5..49)
+            .for_each(|i| {
+                let pattern = test_pattern_flat(i).unwrap();
+                let nodes = pattern.graph().node_count();
+
+                let start_time = std::time::Instant::now();
+                let _model = model_from_pattern(&pattern);
+                let elapsed = start_time.elapsed().as_secs_f64();
+
+                writeln!(file, "{nodes}, {elapsed}").unwrap()
+            });
     }
 }
