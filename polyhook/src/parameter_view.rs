@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use egui::{Layout, Sense, Widget};
+use egui::{Layout, Widget};
 use egui_extras::{Column, TableBuilder};
 use hooklib::script::{PatternScript, Script};
 use rhai::{Dynamic, ImmutableString};

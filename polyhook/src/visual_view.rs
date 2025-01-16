@@ -1,7 +1,7 @@
-use egui::{Color32, Id, InnerResponse, Pos2, Rect, Sense, Stroke, Vec2, Widget};
+use egui::{Color32, InnerResponse, Rect, Sense, Stroke, Vec2, Widget};
 use hooklib::parametric::{example_flat, Identifier, Operation, OperationRef, ParametricPattern};
 use std::{
-    iter::{once, Once},
+    iter::once,
     time::{Duration, Instant},
 };
 
@@ -59,6 +59,7 @@ impl ShouldShowAdd {
     }
 }
 
+#[allow(dead_code)]
 enum OperationType {
     Define,
     Literal,

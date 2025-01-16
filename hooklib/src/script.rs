@@ -10,8 +10,8 @@ use std::{
 use glam::Vec3;
 use rhai::{
     module_resolvers::FileModuleResolver, ASTFlags, Dynamic, Engine, EvalAltResult, EvalContext,
-    Expr, Expression, FnPtr, Ident, ImmutableString, Module, NativeCallContext, RhaiNativeFunc,
-    Stmt, Variant, AST,
+    Expr, Expression, FnPtr, ImmutableString, Module, NativeCallContext, RhaiNativeFunc,
+    Stmt, AST,
 };
 
 use crate::pattern::{Part, Pattern, PatternError};
@@ -290,7 +290,7 @@ impl PatternScript {
         script: &Script,
     ) -> Result<Vec<(ImmutableString, Dynamic)>, Box<dyn Error + Send + Sync>> {
         let engine = PatternScript::create_compile_engine();
-        let mut ast = engine.compile(&script.contents)?;
+        let ast = engine.compile(&script.contents)?;
 
         let exports = ast
             .statements()
@@ -299,7 +299,7 @@ impl PatternScript {
                 |stmt| -> Option<Result<(ImmutableString, Dynamic), Box<dyn Error + Send + Sync>>> {
                     let mut stmt = stmt.clone();
 
-                    if let rhai::Stmt::Var(ref mut body, flags, position) = stmt {
+                    if let rhai::Stmt::Var(ref mut body, flags, _position) = stmt {
                         if flags.contains(ASTFlags::EXPORTED) && !flags.contains(ASTFlags::CONSTANT)
                         {
                             let value = body
@@ -339,7 +339,7 @@ impl PatternScript {
             .map(|stmt| -> Result<Stmt, Box<dyn Error + Send + Sync>> {
                 let mut stmt = stmt.clone();
 
-                if let rhai::Stmt::Var(ref mut body, flags, position) = stmt {
+                if let rhai::Stmt::Var(ref mut body, flags, _position) = stmt {
                     if flags.contains(ASTFlags::EXPORTED) && !flags.contains(ASTFlags::CONSTANT) {
                         if let Some(v) = exports.get(&body.0.name) {
                             body.1 = Expr::from_dynamic(v.clone(), body.1.position());

@@ -228,7 +228,7 @@ mod tests {
         assert!(pattern.graph().node_count() <= 2500);
 
         let start_time = std::time::Instant::now();
-        let model = model_from_pattern(&pattern);
+        let _model = model_from_pattern(&pattern);
         let elapsed = start_time.elapsed().as_secs_f64();
 
         assert!(elapsed <= 30.0);
