@@ -21,48 +21,68 @@ impl Widget for &mut ParameterView {
                             .column(Column::auto())
                             .column(Column::remainder())
                             .header(20.0, |mut header| {
-                                header.col(|ui| { ui.with_layout(Layout::centered_and_justified(egui::Direction::TopDown), |ui| ui.heading("Name")); });
-                                header.col(|ui| { ui.with_layout(Layout::centered_and_justified(egui::Direction::TopDown), |ui| ui.heading("Value")); });
+                                header.col(|ui| {
+                                    ui.with_layout(
+                                        Layout::centered_and_justified(egui::Direction::TopDown),
+                                        |ui| ui.heading("Name"),
+                                    );
+                                });
+                                header.col(|ui| {
+                                    ui.with_layout(
+                                        Layout::centered_and_justified(egui::Direction::TopDown),
+                                        |ui| ui.heading("Value"),
+                                    );
+                                });
                             })
                             .body(|mut body| {
-                                self.parameters.iter_mut()
-                                    .for_each(|(name, value)| {
-                                        body.row(30.0, |mut row| {
-                                            row.col(|ui| { ui.with_layout(Layout::top_down(egui::Align::Max), |ui| ui.label(format!("{name}: "))); });
-                                            row.col(|ui| { ui.with_layout(Layout::top_down(egui::Align::Center), |ui| {
-                                                match value.type_name() {
+                                self.parameters.iter_mut().for_each(|(name, value)| {
+                                    body.row(30.0, |mut row| {
+                                        row.col(|ui| {
+                                            ui.with_layout(
+                                                Layout::top_down(egui::Align::Max),
+                                                |ui| ui.label(format!("{name}: ")),
+                                            );
+                                        });
+                                        row.col(|ui| {
+                                            ui.with_layout(
+                                                Layout::top_down(egui::Align::Center),
+                                                |ui| match value.type_name() {
                                                     "i64" => {
                                                         let mut v = value.as_int().unwrap();
                                                         ui.add(egui::DragValue::new(&mut v));
                                                         *value = v.into();
-                                                    },
+                                                    }
                                                     "f64" => {
                                                         let mut v = value.as_float().unwrap();
                                                         ui.add(egui::DragValue::new(&mut v));
                                                         *value = v.into();
-                                                    },
-                                                    _ => ()
-                                                }
-                                            }); });
+                                                    }
+                                                    _ => (),
+                                                },
+                                            );
                                         });
                                     });
+                                });
                             });
                         ui.allocate_space(ui.available_size());
-                    }).response
-            }).inner
+                    })
+                    .response
+            })
+            .inner
     }
 }
 
 impl ParameterView {
     pub fn refresh_parameters(&mut self, script: &Script) {
-        let exports = PatternScript::get_script_exports(script).expect("Couldn't get script exports");
+        let exports =
+            PatternScript::get_script_exports(script).expect("Couldn't get script exports");
 
-        exports.iter()
-            .for_each(|(exp, default)| {
-                if !self.parameters.contains_key(exp) {
-                    self.parameters.insert(exp.clone(), default.clone());
-                }
-            });
-        self.parameters.retain(|k, _| exports.iter().any(|(ek, _)| k == ek));
+        exports.iter().for_each(|(exp, default)| {
+            if !self.parameters.contains_key(exp) {
+                self.parameters.insert(exp.clone(), default.clone());
+            }
+        });
+        self.parameters
+            .retain(|k, _| exports.iter().any(|(ek, _)| k == ek));
     }
 }

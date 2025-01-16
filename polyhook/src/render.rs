@@ -21,7 +21,10 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(wgpu_render_state: &egui_wgpu::RenderState, starting_pattern: Option<Pattern>) -> Option<Self> {
+    pub fn new(
+        wgpu_render_state: &egui_wgpu::RenderState,
+        starting_pattern: Option<Pattern>,
+    ) -> Option<Self> {
         let device = &wgpu_render_state.device;
 
         let shader = Shader::new_shader(device);
@@ -67,7 +70,8 @@ impl Renderer {
             cache: Default::default(),
         });
 
-        let pattern = starting_pattern.unwrap_or_else(|| hooklib::pattern::test_pattern_flat(15).unwrap());
+        let pattern =
+            starting_pattern.unwrap_or_else(|| hooklib::pattern::test_pattern_flat(15).unwrap());
 
         let diffuse_bytes = include_bytes!("../assets/dc.png");
         let tex_diffuse = Texture::from_bytes(device, diffuse_bytes, "dc_diffuse");

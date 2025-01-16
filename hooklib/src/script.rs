@@ -1,12 +1,22 @@
 use std::{
-    collections::HashMap, error::Error, fs::File, io::Read, path::{Path, PathBuf}, sync::{Arc, RwLock}
+    collections::HashMap,
+    error::Error,
+    fs::{File, OpenOptions},
+    io::{ErrorKind, Read, Write},
+    path::{Path, PathBuf},
+    sync::{Arc, RwLock},
 };
 
 use glam::Vec3;
-use rhai::{module_resolvers::FileModuleResolver, ASTFlags, Dynamic, Engine, EvalAltResult, EvalContext, Expr, Expression, FnPtr, Ident, ImmutableString, Module, NativeCallContext, RhaiNativeFunc, Stmt, Variant, AST};
+use rhai::{
+    module_resolvers::FileModuleResolver, ASTFlags, Dynamic, Engine, EvalAltResult, EvalContext,
+    Expr, Expression, FnPtr, Ident, ImmutableString, Module, NativeCallContext, RhaiNativeFunc,
+    Stmt, Variant, AST,
+};
 
 use crate::pattern::{Part, Pattern, PatternError};
 
+/// A textual script, can be loaded from or saved to a file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Script {
     contents: String,
@@ -14,6 +24,7 @@ pub struct Script {
 }
 
 impl Script {
+    /// Create a new script with the given contents and no file path.
     pub fn new(contents: impl Into<String>) -> Self {
         Self {
             contents: contents.into(),
@@ -21,6 +32,7 @@ impl Script {
         }
     }
 
+    /// Create a new script with the given contents and file path.
     pub fn new_with_path(contents: impl Into<String>, file_path: impl Into<PathBuf>) -> Self {
         Self {
             contents: contents.into(),
@@ -28,6 +40,7 @@ impl Script {
         }
     }
 
+    /// Load a script from a given file path.
     pub fn load_file(path: &Path) -> std::io::Result<Self> {
         println!("{path:?}");
         let mut f = File::open(path)?;
@@ -37,25 +50,50 @@ impl Script {
         Ok(Self::new_with_path(s, path))
     }
 
+    /// Save a script to its recorded file path.
+    pub fn save_file(&self) -> std::io::Result<()> {
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(
+                self.file_path
+                    .as_ref()
+                    .ok_or(std::io::Error::new(ErrorKind::Other, "No file path given"))?,
+            )
+            .inspect_err(|err| eprintln!("Couldn't open file: {err}"))?;
+
+        f.write(self.source().as_bytes())
+            .inspect_err(|err| eprintln!("Couldn't write file: {err}"))?;
+
+        Ok(())
+    }
+
+    /// Returns the current file path.
     pub fn path(&self) -> Option<&Path> {
         self.file_path.as_deref()
     }
 
+    /// Sets the current file path.
     pub fn set_path(&mut self, file_path: impl Into<PathBuf>) {
         self.file_path = Some(file_path.into());
     }
 
+    /// Return the source code of the script.
     pub fn source(&self) -> &str {
         &self.contents
     }
 
+    /// Returns a mutable reference to the source code of the script.
     pub fn source_mut(&mut self) -> &mut String {
         &mut self.contents
     }
 }
 
 impl<T> From<T> for Script
-where T: Into<String> {
+where
+    T: Into<String>,
+{
     fn from(value: T) -> Self {
         Script {
             contents: value.into(),
@@ -67,27 +105,36 @@ where T: Into<String> {
 pub struct PatternScript;
 
 impl PatternScript {
-    pub fn create_compile_engine() -> rhai::Engine {
+    /// Create the Rhai engine used to compile a script, without added functions for evaluation.
+    fn create_compile_engine() -> rhai::Engine {
         let mut engine = Engine::new();
 
         engine
             .set_max_expr_depths(64, 64)
             .set_module_resolver(FileModuleResolver::new_with_extension("ph"))
             .register_type_with_name::<petgraph::graph::NodeIndex>("StitchMark")
-            .register_custom_syntax(vec!["rep", "$expr$", "$expr$"], true, |context: &mut EvalContext, inputs: &[Expression]| {
-                let count = context.eval_expression_tree(&inputs[0])?.as_int().map_err(|err| format!("Invalid count type: {err}"))?;
-                
-                for _ in 0..count {
-                    let _ = context.eval_expression_tree(&inputs[1])?;
-                }
+            .register_custom_syntax(
+                vec!["rep", "$expr$", "$expr$"],
+                true,
+                |context: &mut EvalContext, inputs: &[Expression]| {
+                    let count = context
+                        .eval_expression_tree(&inputs[0])?
+                        .as_int()
+                        .map_err(|err| format!("Invalid count type: {err}"))?;
 
-                Ok(Dynamic::UNIT)
-            })
+                    for _ in 0..count {
+                        let _ = context.eval_expression_tree(&inputs[1])?;
+                    }
+
+                    Ok(Dynamic::UNIT)
+                },
+            )
             .unwrap();
 
         engine
     }
 
+    /// Create the Rhai engine used to evaluate a script fully, including extra functions.
     pub fn create_engine(pattern: Arc<Pattern>, part: Arc<RwLock<Part>>) -> rhai::Engine {
         let mut engine = PatternScript::create_compile_engine();
 
@@ -121,27 +168,34 @@ impl PatternScript {
                     (*part.write().unwrap()) = pattern.add_part();
                 }
             })
-            .register_fn("turn", callback_fallible(part.clone(),    Part::turn))
-            .register_fn("turn_", callback_fallible(part.clone(),   Part::turn_noskip))
+            .register_fn("turn", callback_fallible(part.clone(), Part::turn))
+            .register_fn("turn_", callback_fallible(part.clone(), Part::turn_noskip))
             .register_fn("new_row", callback_fallible(part.clone(), Part::new_row))
-            .register_fn("chain", callback_fallible(part.clone(),   Part::chain))
-            .register_fn("dc", callback_fallible(part.clone(),      Part::dc))
-            .register_fn("dc_", callback_fallible(part.clone(),     Part::dc_noskip))
-            .register_fn("dec", callback_fallible(part.clone(),     Part::dec))
-            .register_fn("skip", callback_fallible(part.clone(),    Part::skip))
-            .register_fn("magic_ring", callback(part.clone(),       Part::magic_ring))
+            .register_fn("chain", callback_fallible(part.clone(), Part::chain))
+            .register_fn("dc", callback_fallible(part.clone(), Part::dc))
+            .register_fn("dc_", callback_fallible(part.clone(), Part::dc_noskip))
+            .register_fn("dec", callback_fallible(part.clone(), Part::dec))
+            .register_fn("skip", callback_fallible(part.clone(), Part::skip))
+            .register_fn("magic_ring", callback(part.clone(), Part::magic_ring))
             .register_fn("mark", {
                 let part = part.clone();
                 move || part.read().unwrap().prev()
             })
             .register_fn("curr", {
                 let part = part.clone();
-                move || -> Result<_, Box<EvalAltResult>> { part.read().unwrap().insert().ok_or("No current insertion point".into()) }
+                move || -> Result<_, Box<EvalAltResult>> {
+                    part.read()
+                        .unwrap()
+                        .insert()
+                        .ok_or("No current insertion point".into())
+                }
             })
             .register_fn("row", {
                 let part = part.clone();
                 move || -> Result<Dynamic, Box<EvalAltResult>> {
-                    part.read().unwrap().current_row()
+                    part.read()
+                        .unwrap()
+                        .current_row()
                         .map(|v| v.clone().into())
                         .map_err(|err| format!("{err}").into())
                 }
@@ -156,39 +210,56 @@ impl PatternScript {
             })
             .register_fn("chain_space", {
                 let part = part.clone();
-                move |ctx: NativeCallContext, func: FnPtr| -> Result<petgraph::graph::NodeIndex, Box<EvalAltResult>> {
-                    part.write().unwrap().start_ch_sp().map_err(|err| -> Box<EvalAltResult> { format!("{err}").into() })?;
+                move |ctx: NativeCallContext,
+                      func: FnPtr|
+                      -> Result<petgraph::graph::NodeIndex, Box<EvalAltResult>> {
+                    part.write()
+                        .unwrap()
+                        .start_ch_sp()
+                        .map_err(|err| -> Box<EvalAltResult> { format!("{err}").into() })?;
                     func.call_within_context::<()>(&ctx, ())?;
-                    let ch_sp = part.write().unwrap().end_ch_sp().map_err(|err| -> Box<EvalAltResult> { format!("{err}").into() })?;
+                    let ch_sp = part
+                        .write()
+                        .unwrap()
+                        .end_ch_sp()
+                        .map_err(|err| -> Box<EvalAltResult> { format!("{err}").into() })?;
                     Ok(ch_sp)
                 }
             })
             .register_fn("ignore", {
                 let part = part.clone();
                 move |ctx: NativeCallContext, func: FnPtr| -> Result<(), Box<EvalAltResult>> {
-                    { part.write().unwrap().set_ignore(true); }
+                    {
+                        part.write().unwrap().set_ignore(true);
+                    }
                     func.call_within_context::<()>(&ctx, ())?;
-                    { part.write().unwrap().set_ignore(false); }
+                    {
+                        part.write().unwrap().set_ignore(false);
+                    }
                     Ok(())
                 }
             })
             .register_fn("sew", {
                 let pattern = pattern.clone();
                 move |row_1: rhai::Array, row_2: rhai::Array| -> Result<(), Box<EvalAltResult>> {
-                    let row_1: Vec<petgraph::graph::NodeIndex> = row_1.into_iter()
+                    let row_1: Vec<petgraph::graph::NodeIndex> = row_1
+                        .into_iter()
                         .map(|d| d.try_cast().ok_or("Sew argument not a node index"))
                         .collect::<Result<Vec<_>, _>>()?;
-                    let row_2: Vec<petgraph::graph::NodeIndex> = row_2.into_iter()
+                    let row_2: Vec<petgraph::graph::NodeIndex> = row_2
+                        .into_iter()
                         .map(|d| d.try_cast().ok_or("Sew argument not a node index"))
                         .collect::<Result<Vec<_>, _>>()?;
-                    pattern.sew(row_1, row_2)
+                    pattern
+                        .sew(row_1, row_2)
                         .map_err(|err| format!("{err}").into())
                 }
             })
             .register_fn("change_color", {
                 let part = part.clone();
-                move |color: rhai::Array| -> Result<(), Box<EvalAltResult>>{
-                    let color = color.into_iter()
+                move |color: rhai::Array| -> Result<(), Box<EvalAltResult>> {
+                    let color = color
+                        .into_iter()
                         .map(|comp| comp.cast::<f64>() as f32)
                         .collect::<Vec<_>>();
                     if color.len() != 3 {
@@ -200,35 +271,50 @@ impl PatternScript {
                     Ok(())
                 }
             });
-            // .on_var(|name, _index, ctx| {
-            //     let var = ctx.scope().get_value::<Dynamic>(name);
-            //     if var.is_some() {
-            //         Ok(None)
-            //     } else {
-            //         println!("couldn't find name: {name}");
-            //         let func = FnPtr::new(name)?;
-            //         Ok(Some(func.into()))
-            //     }
-            // });
+        // .on_var(|name, _index, ctx| {
+        //     let var = ctx.scope().get_value::<Dynamic>(name);
+        //     if var.is_some() {
+        //         Ok(None)
+        //     } else {
+        //         println!("couldn't find name: {name}");
+        //         let func = FnPtr::new(name)?;
+        //         Ok(Some(func.into()))
+        //     }
+        // });
 
         engine
     }
 
-    pub fn get_script_exports(script: &Script) -> Result<Vec<(ImmutableString, Dynamic)>, Box<dyn Error + Send + Sync>> {
+    /// Parse a script and get all exported parameters from it.
+    pub fn get_script_exports(
+        script: &Script,
+    ) -> Result<Vec<(ImmutableString, Dynamic)>, Box<dyn Error + Send + Sync>> {
         let engine = PatternScript::create_compile_engine();
         let mut ast = engine.compile(&script.contents)?;
 
-        let exports = ast.statements().iter()
-            .filter_map(|stmt| -> Option<Result<(ImmutableString, Dynamic), Box<dyn Error + Send + Sync>>> {
-                let mut stmt = stmt.clone();
+        let exports = ast
+            .statements()
+            .iter()
+            .filter_map(
+                |stmt| -> Option<Result<(ImmutableString, Dynamic), Box<dyn Error + Send + Sync>>> {
+                    let mut stmt = stmt.clone();
 
-                if let rhai::Stmt::Var(ref mut body, flags, position) = stmt {
-                    if flags.contains(ASTFlags::EXPORTED) && !flags.contains(ASTFlags::CONSTANT) {
-                        let value = body.1.get_literal_value().ok_or("Exported parameter must be a literal.".to_string().into());
-                        Some(value.map(|v| (body.0.name.clone(), v)))
-                    } else { None }
-                } else { None }
-            })
+                    if let rhai::Stmt::Var(ref mut body, flags, position) = stmt {
+                        if flags.contains(ASTFlags::EXPORTED) && !flags.contains(ASTFlags::CONSTANT)
+                        {
+                            let value = body
+                                .1
+                                .get_literal_value()
+                                .ok_or("Exported parameter must be a literal.".to_string().into());
+                            Some(value.map(|v| (body.0.name.clone(), v)))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                },
+            )
             .try_collect::<Vec<_>>()?;
 
         println!("{exports:?}");
@@ -236,12 +322,20 @@ impl PatternScript {
         Ok(exports)
     }
 
-    pub fn preprocess_script(script: &Script, exports: &HashMap<ImmutableString, Dynamic>) -> Result<AST, Box<dyn Error + Send + Sync>> {
+    /// Parse a script and replace all exported parameters with their given values in the [`HashMap`].
+    pub fn preprocess_script(
+        script: &Script,
+        exports: &HashMap<ImmutableString, Dynamic>,
+    ) -> Result<AST, Box<dyn Error + Send + Sync>> {
         let engine = PatternScript::create_compile_engine();
         let mut ast = engine.compile(&script.contents)?;
-        if let Some(path) = &script.file_path { ast.set_source(path.to_str().unwrap()); }
+        if let Some(path) = &script.file_path {
+            ast.set_source(path.to_str().unwrap());
+        }
 
-        let new_stmts = ast.statements().iter()
+        let new_stmts = ast
+            .statements()
+            .iter()
             .map(|stmt| -> Result<Stmt, Box<dyn Error + Send + Sync>> {
                 let mut stmt = stmt.clone();
 
@@ -257,12 +351,12 @@ impl PatternScript {
             })
             .try_collect::<Vec<_>>()?;
 
-        let new_ast = AST::new(new_stmts, Module::default())
-            .merge(&ast.clone_functions_only());
+        let new_ast = AST::new(new_stmts, Module::default()).merge(&ast.clone_functions_only());
 
         Ok(new_ast)
     }
 
+    /// Evaluate a script in full.
     pub fn eval_script(script: &Script) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
         let pattern = Pattern::new();
         let part = Arc::new(RwLock::new(pattern.add_part()));
@@ -270,7 +364,9 @@ impl PatternScript {
         {
             let engine = PatternScript::create_engine(pattern.clone(), part.clone());
             let mut ast = engine.compile(&script.contents)?;
-            if let Some(path) = &script.file_path { ast.set_source(path.to_str().unwrap()); }
+            if let Some(path) = &script.file_path {
+                ast.set_source(path.to_str().unwrap());
+            }
             engine.run_ast(&ast)?
         }
 
@@ -278,7 +374,11 @@ impl PatternScript {
         Ok(pattern.into_inner())
     }
 
-    pub fn eval_script_with_exports(script: &Script, exports: &HashMap<ImmutableString, Dynamic>) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
+    /// Evaluate a script in full with the given export parameters set.
+    pub fn eval_script_with_exports(
+        script: &Script,
+        exports: &HashMap<ImmutableString, Dynamic>,
+    ) -> Result<Pattern, Box<dyn Error + Send + Sync>> {
         let pattern = Pattern::new();
         let part = Arc::new(RwLock::new(pattern.add_part()));
 
@@ -308,7 +408,8 @@ rep 15 {
     turn();
     rep 15 dc();
 }
-        "#.into(),
+        "#
+            .into(),
         )
         .expect("Error in evaluating script");
 
@@ -317,13 +418,12 @@ rep 15 {
 
     #[test]
     fn test_all_examples() {
-        examples::EXAMPLES.iter()
-            .for_each(|&(name, path)| {
-                let path = Path::new("../").join(Path::new(path));
-                let script = Script::load_file(&path).unwrap();
-                PatternScript::eval_script(&script)
-                    .map_err(|err| format!("Error in evaluating example {name}: {err}"))
-                    .unwrap();
-            });
+        examples::EXAMPLES.iter().for_each(|&(name, path)| {
+            let path = Path::new("../").join(Path::new(path));
+            let script = Script::load_file(&path).unwrap();
+            PatternScript::eval_script(&script)
+                .map_err(|err| format!("Error in evaluating example {name}: {err}"))
+                .unwrap();
+        });
     }
 }

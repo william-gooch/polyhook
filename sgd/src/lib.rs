@@ -1,3 +1,5 @@
+//! Stochastic gradient descent (SGD) graph layout implementation for Rust.
+
 use glam::{Mat4, Quat, Vec2, Vec3, Vec4Swizzles};
 use itertools::Itertools;
 use petgraph::{
@@ -9,7 +11,8 @@ use petgraph::{
 use rand::prelude::*;
 use std::ops::{Add, Mul, Sub};
 
-pub trait SDGCoords:
+/// Trait for types that can be used as coordinates for SGD.
+pub trait SGDCoords:
     Add<Self, Output = Self> + Sub<Self, Output = Self> + Mul<f32, Output = Self> + Sized + Copy
 {
     fn random<R: Rng>(rng: &mut R) -> Self;
@@ -17,7 +20,7 @@ pub trait SDGCoords:
     fn is_nan(self) -> bool;
 }
 
-impl SDGCoords for Vec2 {
+impl SGDCoords for Vec2 {
     fn random<R: Rng>(rng: &mut R) -> Self {
         Vec2::new(rng.gen_range(0.0..1.0), rng.gen_range(0.0..1.0))
     }
@@ -31,7 +34,7 @@ impl SDGCoords for Vec2 {
     }
 }
 
-impl SDGCoords for Vec3 {
+impl SGDCoords for Vec3 {
     fn random<R: Rng>(rng: &mut R) -> Self {
         Vec3::new(
             rng.gen_range(0.0..1.0),
@@ -49,6 +52,7 @@ impl SDGCoords for Vec3 {
     }
 }
 
+/// A single term in the SGD process, created from a shortest-path between two nodes.
 #[derive(Debug)]
 struct Term {
     start: NodeIndex,
@@ -60,6 +64,7 @@ struct Term {
 const EPSILON: f32 = 0.01;
 const SGD_ITERS: u32 = 10;
 
+/// Produces the annealing schedule used for SGD.
 fn schedule(terms: &[Term], t_max: u32) -> Vec<f32> {
     let w_min = terms
         .iter()
@@ -82,9 +87,10 @@ fn schedule(terms: &[Term], t_max: u32) -> Vec<f32> {
         .collect::<Vec<_>>()
 }
 
+/// Performs SGD on the given graph, converting all nodes to the given [`SGDCoords`] type, and all edges into their length given by [`Into<f32>`].
 pub fn sgd<C, N, E>(g: &Graph<N, E>) -> Graph<C, f32, Undirected>
 where
-    C: SDGCoords,
+    C: SGDCoords,
     E: Into<f32> + Clone,
 {
     let mut rng = SmallRng::from_rng(thread_rng()).expect("Couldn't create RNG");
@@ -92,13 +98,13 @@ where
     // turn a crochet graph into pure vertices and edges
     let mut graph = g
         .map(
-            |_ix, _node| SDGCoords::random(&mut rng),
+            |_ix, _node| SGDCoords::random(&mut rng),
             |_ix, edge| edge.clone().into(),
         )
         .into_edge_type::<Undirected>();
 
     let nodes = graph.node_indices().collect::<Vec<_>>();
-    let mut terms = nodes
+    let terms = nodes
         .iter()
         .take(nodes.len() - 1) // ignore the last node because it'll be covered by all the others
         .flat_map(|node| {
@@ -117,14 +123,17 @@ where
         })
         .collect::<Vec<_>>();
 
+    if terms.is_empty() {
+        eprintln!("No terms found in the graph! Was there more than one node?");
+        return graph;
+    }
+
     // shuffle the terms twice and alternate between both shuffles
     let mut terms_order_1 = (0..terms.len()).collect::<Vec<_>>();
     terms_order_1.shuffle(&mut rng);
     let mut terms_order_2 = (0..terms.len()).collect::<Vec<_>>();
     terms_order_2.shuffle(&mut rng);
-    let mut terms_orders = {
-        std::iter::repeat([&terms_order_1, &terms_order_2]).flatten()
-    };
+    let mut terms_orders = { std::iter::repeat([&terms_order_1, &terms_order_2]).flatten() };
 
     let etas: Vec<f32> = schedule(&terms, SGD_ITERS);
     for eta in etas {
@@ -153,14 +162,21 @@ const FDG_ITERS: u32 = 10;
 const STEP_SIZE: f32 = 0.1;
 const ATTRACTIVE_FORCE: f32 = 2.0;
 
+/// Perform force-directed graph layout on a graph.
+/// Uses the Tutte approach - attractive forces and no repulsive forces.
 pub fn fdg(g: &mut Graph<Vec3, f32, Undirected>) {
     for _ in 1..=FDG_ITERS {
         let new_pos = g
             .node_references()
             .map(|(n1, p1)| {
-                let force: Vec3 = g.edges(n1)
+                let force: Vec3 = g
+                    .edges(n1)
                     .map(|e| {
-                        let n2 = if e.source() == n1 { e.target() } else { e.source() };
+                        let n2 = if e.source() == n1 {
+                            e.target()
+                        } else {
+                            e.source()
+                        };
                         let p2 = g.node_weight(n2).unwrap();
                         let d = p2 - p1;
                         let f = ATTRACTIVE_FORCE * f32::log10(d.length() / e.weight());
@@ -178,16 +194,14 @@ pub fn fdg(g: &mut Graph<Vec3, f32, Undirected>) {
     }
 }
 
-pub fn normalize(g: &mut Graph<Vec3, f32, Undirected>) {
+/// Normalize a graph to be roughly in the same position each time, regardless of initial random state.
+pub fn normalize(g: &mut Graph<Vec3, f32, Undirected>) -> Option<()> {
     let avg_position = g.node_weights().sum::<Vec3>() / g.node_count() as f32;
-    let (central, central_pos) = g
-        .node_references()
-        .min_by(|a, b| {
-            (*a.1 - avg_position)
-                .length_squared()
-                .total_cmp(&(*b.1 - avg_position).length_squared())
-        })
-        .expect("Couldn't find central node.");
+    let (central, central_pos) = g.node_references().min_by(|a, b| {
+        (*a.1 - avg_position)
+            .length_squared()
+            .total_cmp(&(*b.1 - avg_position).length_squared())
+    })?;
 
     let neighbours: (Vec3, Vec3, Vec3) = g
         .edges(central)
@@ -201,8 +215,7 @@ pub fn normalize(g: &mut Graph<Vec3, f32, Undirected>) {
         .unique()
         .map(|n| central_pos - g.node_weight(n).unwrap())
         .take(3)
-        .next_tuple()
-        .expect("Node doesn't have at least 3 neighbours");
+        .next_tuple()?;
 
     let normal = (neighbours.1 - neighbours.0)
         .cross(neighbours.2 - neighbours.0)
@@ -212,6 +225,8 @@ pub fn normalize(g: &mut Graph<Vec3, f32, Undirected>) {
 
     g.node_weights_mut()
         .for_each(|p| *p = (transform * (p.extend(1.0))).xyz());
+
+    Some(())
 }
 
 #[cfg(test)]

@@ -11,13 +11,20 @@ use petgraph::{
     Direction,
 };
 
+/// Error type for pattern creation.
 #[derive(Debug)]
 pub enum PatternError {
+    /// You tried to [skip](`Part::skip`) past the end of the current row.
     EndOfRow,
+    /// There's no current insertion point set.
     NoInsert,
+    /// There are no rows in the pattern to work into.
     NoRows,
+    /// The two lists passed to [`Pattern::sew`] are not the same length.
     SewInvalidLengths,
+    /// You tried to start a chain space while one was already started.
     NestedChainSpace,
+    /// You tried to end a chain space while none was started.
     NoChainSpace,
 }
 
@@ -36,14 +43,23 @@ impl Display for PatternError {
 
 impl Error for PatternError {}
 
+/// A node in the crochet graph.
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Node {
-    Stitch { ty: &'static str, turn: bool, color: Vec3 },
+    /// Represents any stitch in the graph.
+    Stitch {
+        ty: &'static str,
+        turn: bool,
+        color: Vec3,
+    },
+    /// A chain space made up from multiple neighbour nodes.
     ChainSpace,
+    /// A magic ring that other stitches can work into.
     MagicRing,
 }
 
 impl Node {
+    /// Returns a chain stitch
     fn chain(color: Vec3) -> Self {
         Self::Stitch {
             ty: "ch",
@@ -52,6 +68,7 @@ impl Node {
         }
     }
 
+    /// Returns a turn, a chain stitch where a new row is started and the work is turned.
     fn turn(color: Vec3) -> Self {
         Self::Stitch {
             ty: "ch",
@@ -60,6 +77,7 @@ impl Node {
         }
     }
 
+    /// Returns a double crochet stitch.
     fn dc(color: Vec3) -> Self {
         Self::Stitch {
             ty: "dc",
@@ -68,6 +86,7 @@ impl Node {
         }
     }
 
+    /// Returns a decrease stitch.
     fn decrease(color: Vec3) -> Self {
         Self::Stitch {
             ty: "dec",
@@ -76,17 +95,17 @@ impl Node {
         }
     }
 
+    /// Returns a chain space.
     fn ch_sp() -> Self {
         Self::ChainSpace
     }
 
+    /// Returns whether this stitch is a turn.
     pub fn is_turn(&self) -> bool {
-        match self {
-            Node::Stitch { turn, .. } => *turn,
-            _ => false,
-        }
+        matches!(self, Node::Stitch { turn, .. } if *turn)
     }
 
+    /// Returns the stitch type as a string.
     pub fn stitch_type(&self) -> &'static str {
         match self {
             Node::Stitch { ty, .. } => ty,
@@ -102,12 +121,18 @@ impl Default for Node {
     }
 }
 
+/// Different edge types within the crochet graph.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum EdgeType {
+    /// The stitch is the last one worked
     Previous,
+    /// The stitch inserts into this one
     Insert,
+    /// There is a slip stitch connecting these two stitches
     Slip,
+    /// This stitch is a neighbour making up a chain space
     Neighbour,
+    /// This stitch is sewn to another one
     Sew,
 }
 
@@ -119,10 +144,10 @@ enum SkipDirection {
 }
 
 /// Gauge is the ratio of rows in a given length to stitches in a given length.
-pub const GAUGE: f32 = 15.0 / 18.5;
+const GAUGE: f32 = 15.0 / 18.5;
 
 /// Epsilon is just a really small distance, used for stitches that should be really close together (e.g. slips and sews)
-pub const EPSILON: f32 = 0.001;
+const EPSILON: f32 = 0.001;
 
 impl From<EdgeType> for f32 {
     fn from(edge_type: EdgeType) -> Self {
@@ -136,6 +161,7 @@ impl From<EdgeType> for f32 {
     }
 }
 
+/// A whole pattern, represented as a crochet graph. Most operations will refer to the [`Part`] struct.
 #[derive(Default, Debug)]
 pub struct Pattern {
     graph: RwLock<graph::DiGraph<Node, EdgeType>>,
@@ -153,22 +179,27 @@ impl PartialEq for Pattern {
 }
 
 impl Pattern {
+    /// Create a new empty pattern with no parts.
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             graph: Default::default(),
         })
     }
 
+    /// Unwrap a pattern within an arc, or clone the underlying graph if the Arc is still being used.
     pub fn into_inner(self: Arc<Self>) -> Self {
         Arc::try_unwrap(self).unwrap_or_else(|s| Pattern {
             graph: s.graph.read().unwrap().clone().into(),
         })
     }
 
+    /// Add a new [`Part`] to the graph and return it.
     pub fn add_part(self: &Arc<Self>) -> Part {
         Part::new_from_parent(self.clone())
     }
 
+    /// Sew any two lists of stitches together pairwise.
+    /// Returns [`PatternError::SewInvalidLengths`] if the two lists are of different lengths.
     pub fn sew(
         &self,
         row_1: Vec<graph::NodeIndex>,
@@ -185,10 +216,12 @@ impl Pattern {
         }
     }
 
+    /// Return the underlying graph of the pattern.
     pub fn graph(&self) -> impl Deref<Target = graph::DiGraph<Node, EdgeType>> + use<'_> {
         self.graph.read().unwrap()
     }
 
+    /// Return a triangulated version of the crochet graph, where diagonal shortcuts are added.
     pub fn triangulated_graph(&self) -> graph::DiGraph<(), f32> {
         let new_graph = self.graph.read().unwrap().clone();
         let diag_length = (1.0 + (GAUGE * GAUGE)).sqrt();
@@ -251,6 +284,7 @@ impl Pattern {
         new_graph
     }
 
+    /// Convert the pattern graph to GraphViz DOT format using [`petgraph::dot::Dot`].
     pub fn to_graphviz(&self) -> String {
         use petgraph::dot::{Config, Dot};
 
@@ -291,6 +325,7 @@ impl Pattern {
     }
 }
 
+/// A crochet part, containing a reference to a parent [`Pattern`].
 #[derive(Debug)]
 pub struct Part {
     parent: Arc<Pattern>,
@@ -306,44 +341,55 @@ pub struct Part {
 }
 
 impl Part {
-    fn graph(&self) -> impl Deref<Target = graph::DiGraph<Node, EdgeType>> + use<'_> {
-        self.parent.graph()
-    }
-
+    /// Get a reference to the parent's crochet graph.
     fn graph_mut(&self) -> impl DerefMut<Target = graph::DiGraph<Node, EdgeType>> + use<'_> {
         self.parent.graph.write().unwrap()
     }
 
+    /// The last worked stitch in the part.
     pub fn prev(&self) -> graph::NodeIndex {
         self.prev
     }
 
+    /// The first worked stitch in the part.
     pub fn start(&self) -> graph::NodeIndex {
         self.start
     }
 
+    /// Returns a [`Vec`] of all stitches in the current row.
     pub fn current_row(&self) -> Result<&Vec<graph::NodeIndex>, PatternError> {
+        self.rows.last().ok_or(PatternError::NoRows)
+    }
+
+    /// Returns a [`Vec`] of all stitches in the previous row.
+    pub fn previous_row(&self) -> Result<&Vec<graph::NodeIndex>, PatternError> {
         self.rows
-            .last()
+            .get(self.rows.len().checked_sub(2).ok_or(PatternError::NoRows)?)
             .ok_or(PatternError::NoRows)
     }
 
+    /// Returns a mutable [`Vec`] of all stitches in the current row.
     pub fn current_row_mut(&mut self) -> Result<&mut Vec<graph::NodeIndex>, PatternError> {
-        self.rows
-            .last_mut()
-            .ok_or(PatternError::NoRows)
+        self.rows.last_mut().ok_or(PatternError::NoRows)
     }
 
+    /// Set the current insertion point.
     pub fn set_insert(&mut self, insert: graph::NodeIndex) {
         self.insert = Some(insert);
     }
 
+    /// Get the current insertion point.
     pub fn insert(&self) -> Option<graph::NodeIndex> {
         self.insert
     }
 
+    /// Create a new [`Part`] from a parent [`Pattern`].
     pub fn new_from_parent(parent: Arc<Pattern>) -> Self {
-        let start = parent.graph.write().unwrap().add_node(Node::chain(Vec3::ONE));
+        let start = parent
+            .graph
+            .write()
+            .unwrap()
+            .add_node(Node::chain(Vec3::ONE));
         let prev = start;
         let rows = vec![vec![start]];
 
@@ -360,6 +406,7 @@ impl Part {
         }
     }
 
+    /// Replace the starting chain with a magic ring.
     pub fn magic_ring(&mut self) {
         self.graph_mut().remove_node(self.start);
         let new_start = self.graph_mut().add_node(Node::MagicRing);
@@ -367,17 +414,15 @@ impl Part {
         self.prev = new_start;
     }
 
+    /// Start a new row.
     pub fn new_row(&mut self) -> Result<(), PatternError> {
         self.rows.push(vec![]);
-        self.set_insert(
-            *self.rows[self.rows.len().checked_sub(2).ok_or(PatternError::NoRows)?]
-                .first()
-                .ok_or(PatternError::EndOfRow)?,
-        );
+        self.set_insert(*self.previous_row()?.first().ok_or(PatternError::EndOfRow)?);
 
         Ok(())
     }
 
+    /// Turn the work, starting a new row and marking that the work is in alternating row order.
     pub fn turn(&mut self) -> Result<(), PatternError> {
         self.turn_noskip()?;
         self.skip()?;
@@ -385,6 +430,8 @@ impl Part {
         Ok(())
     }
 
+    /// Turn the work, starting a new row and marking that the work is in alternating row order.
+    /// Don't skip a stitch at the start of the next row.
     pub fn turn_noskip(&mut self) -> Result<(), PatternError> {
         self.new_row()?;
         self.insert = Some(self.prev);
@@ -392,15 +439,16 @@ impl Part {
         let new_node = self.graph_mut().add_node(Node::turn(self.current_color));
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
-        self.current_row_mut()?
-            .push(new_node);
+        self.current_row_mut()?.push(new_node);
         self.prev = new_node;
 
         Ok(())
     }
 
+    /// Skip a stitch, moving to the next insertion point in the same row.
+    /// Fails if there are no more stitches in the insert row.
     pub fn skip(&mut self) -> Result<(), PatternError> {
-        let insert_row = &self.rows[self.rows.len().checked_sub(2).ok_or(PatternError::NoRows)?];
+        let insert_row = self.previous_row()?;
         let insert = self.insert.ok_or(PatternError::NoInsert)?;
         let curr_insert_idx = insert_row
             .iter()
@@ -418,6 +466,7 @@ impl Part {
         Ok(())
     }
 
+    /// Create a new chain stitch.
     pub fn chain(&mut self) -> Result<NodeIndex, PatternError> {
         let new_node = self.graph_mut().add_node(Node::chain(self.current_color));
         self.graph_mut()
@@ -429,67 +478,82 @@ impl Part {
         }
 
         if !self.ignore_for_row {
-            self.current_row_mut()?
-                .push(new_node);
+            self.current_row_mut()?.push(new_node);
         }
 
         Ok(new_node)
     }
 
+    /// Create a new double crochet stitch in the current insertion point, then skip.
     pub fn dc(&mut self) -> Result<NodeIndex, PatternError> {
         let new_node = self.dc_noskip()?;
         self.skip()?;
         Ok(new_node)
     }
 
+    /// Create a new double crochet stitch in the current insertion point.
+    /// Don't skip to the next insertion point.
     pub fn dc_noskip(&mut self) -> Result<NodeIndex, PatternError> {
         let new_node = self.graph_mut().add_node(Node::dc(self.current_color));
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
-        self.graph_mut()
-            .add_edge(new_node, self.insert.ok_or(PatternError::NoInsert)?, EdgeType::Insert);
+        self.graph_mut().add_edge(
+            new_node,
+            self.insert.ok_or(PatternError::NoInsert)?,
+            EdgeType::Insert,
+        );
 
         self.prev = new_node;
 
         if !self.ignore_for_row {
-            self.current_row_mut()?
-                .push(new_node);
+            self.current_row_mut()?.push(new_node);
         }
 
         Ok(new_node)
     }
 
+    /// Create a new decrease stitch in the next two insertion points.
     pub fn dec(&mut self) -> Result<NodeIndex, PatternError> {
-        let new_node = self.graph_mut().add_node(Node::decrease(self.current_color));
+        let new_node = self
+            .graph_mut()
+            .add_node(Node::decrease(self.current_color));
         self.graph_mut()
             .add_edge(new_node, self.prev, EdgeType::Previous);
-        self.graph_mut()
-            .add_edge(new_node, self.insert.ok_or(PatternError::NoInsert)?, EdgeType::Insert);
+        self.graph_mut().add_edge(
+            new_node,
+            self.insert.ok_or(PatternError::NoInsert)?,
+            EdgeType::Insert,
+        );
         self.skip()?;
-        self.graph_mut()
-            .add_edge(new_node, self.insert.ok_or(PatternError::NoInsert)?, EdgeType::Insert);
+        self.graph_mut().add_edge(
+            new_node,
+            self.insert.ok_or(PatternError::NoInsert)?,
+            EdgeType::Insert,
+        );
         self.skip()?;
 
         self.prev = new_node;
 
         if !self.ignore_for_row {
-            self.current_row_mut()?
-                .push(new_node);
+            self.current_row_mut()?.push(new_node);
         }
 
         Ok(new_node)
     }
 
+    /// Work an increase stitch, i.e. two double crochetes inserted into the same stitch.
     pub fn inc(&mut self) -> Result<(NodeIndex, NodeIndex), PatternError> {
         let s1 = self.dc_noskip()?;
         let s2 = self.dc()?;
         Ok((s1, s2))
     }
 
+    /// Work a slip stitch into the given stitch.
     pub fn slip_stitch(&mut self, into: graph::NodeIndex) {
         self.graph_mut().add_edge(self.prev, into, EdgeType::Slip);
     }
 
+    /// Start a chain space - track all stitches worked and add them to the neigbours.
     pub fn start_ch_sp(&mut self) -> Result<(), PatternError> {
         if self.current_ch_sp.is_some() {
             return Err(PatternError::NestedChainSpace);
@@ -500,6 +564,7 @@ impl Part {
         Ok(())
     }
 
+    /// End a chain space - create a new chain space node and add all the tracked neighbours as [`EdgeType::Neighbour`] edges.
     pub fn end_ch_sp(&mut self) -> Result<NodeIndex, PatternError> {
         let ch_sp = self
             .current_ch_sp
@@ -515,10 +580,12 @@ impl Part {
         Ok(new_node)
     }
 
+    /// Set whether to ignore the currently worked stitches, not adding them to the current row.
     pub fn set_ignore(&mut self, ignore: bool) {
         self.ignore_for_row = ignore;
     }
 
+    /// Change the color of the yarn.
     pub fn change_color(&mut self, color: Vec3) {
         self.current_color = color;
     }
@@ -711,7 +778,7 @@ mod tests {
 
     #[test]
     fn test_triangulated() {
-        use petgraph::dot::{Dot, Config};
+        use petgraph::dot::{Config, Dot};
 
         let pattern = test_pattern_flat(7).unwrap();
         let triangulated = pattern.triangulated_graph();
@@ -726,7 +793,7 @@ mod tests {
                 let len: f32 = *e.weight();
                 format!("len = {len}")
             },
-            &|_, _| "shape = \"point\" label = \"\"".into()
+            &|_, _| "shape = \"point\" label = \"\"".into(),
         );
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/triangulated.dot")).unwrap();

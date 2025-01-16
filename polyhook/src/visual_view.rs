@@ -1,6 +1,9 @@
 use egui::{Color32, Id, InnerResponse, Pos2, Rect, Sense, Stroke, Vec2, Widget};
 use hooklib::parametric::{example_flat, Identifier, Operation, OperationRef, ParametricPattern};
-use std::{iter::{once, Once}, time::{Duration, Instant}};
+use std::{
+    iter::{once, Once},
+    time::{Duration, Instant},
+};
 
 const FUNCTIONS: &[&str] = &["chain", "dc", "turn", "new_row"];
 
@@ -195,7 +198,10 @@ impl VisualView {
         in_rect: Rect,
         at: usize,
     ) -> InnerResponse<Option<usize>> {
-        let rect = Rect::from_center_size(in_rect.right_top() + Vec2::new(-10.0, 10.0), Vec2::new(10.0, 10.0));
+        let rect = Rect::from_center_size(
+            in_rect.right_top() + Vec2::new(-10.0, 10.0),
+            Vec2::new(10.0, 10.0),
+        );
         let resp = ui.put(rect, egui::Button::new("X"));
         ui.advance_cursor_after_rect(in_rect);
 
@@ -215,27 +221,39 @@ impl VisualView {
                         let before_operations = once({
                             let mut rect = ui.max_rect();
                             rect.set_bottom(rect.top() + 20.0);
-                            let InnerResponse { inner: add, response: add_resp } = self.add_step_ui(ui, ui.interact(rect, ui.next_auto_id(), Sense::hover()), 0);
+                            let InnerResponse {
+                                inner: add,
+                                response: add_resp,
+                            } = self.add_step_ui(
+                                ui,
+                                ui.interact(rect, ui.next_auto_id(), Sense::hover()),
+                                0,
+                            );
                             InnerResponse::new(add.map(Instruction::AddStep), add_resp)
                         });
-                        let after_operations = vec.iter_mut()
-                            .enumerate()
-                            .map(|(i, op)| {
-                                let resp = self.operation_ui(ui, *op);
-                                let InnerResponse { inner: add, response: add_resp } = self.add_step_ui(ui, resp, i + 1);
-                                if let Some(add) = add {
-                                    InnerResponse::new(Some(Instruction::AddStep(add)), add_resp)
-                                } else {
-                                    let InnerResponse { inner: remove, response: remove_resp } = self.remove_step_ui(ui, add_resp.rect, i);
-                                    InnerResponse::new(remove.map(Instruction::RemoveStep), remove_resp | add_resp)
-                                }
-                            });
-                        before_operations.chain(after_operations)
-                            .reduce(|a, b| {
+                        let after_operations = vec.iter_mut().enumerate().map(|(i, op)| {
+                            let resp = self.operation_ui(ui, *op);
+                            let InnerResponse {
+                                inner: add,
+                                response: add_resp,
+                            } = self.add_step_ui(ui, resp, i + 1);
+                            if let Some(add) = add {
+                                InnerResponse::new(Some(Instruction::AddStep(add)), add_resp)
+                            } else {
+                                let InnerResponse {
+                                    inner: remove,
+                                    response: remove_resp,
+                                } = self.remove_step_ui(ui, add_resp.rect, i);
                                 InnerResponse::new(
-                                    a.inner.or(b.inner),
-                                    a.response | b.response,
+                                    remove.map(Instruction::RemoveStep),
+                                    remove_resp | add_resp,
                                 )
+                            }
+                        });
+                        before_operations
+                            .chain(after_operations)
+                            .reduce(|a, b| {
+                                InnerResponse::new(a.inner.or(b.inner), a.response | b.response)
                             })
                             .unwrap_or_else(|| InnerResponse::new(None, ui.response()))
                     })
@@ -296,7 +314,10 @@ impl VisualView {
                     ui.label("do")
                         .union(self.operation_ui(ui, *n))
                         .union({
-                            let is_literal = self.pattern.get(*n).is_some_and(|n| matches!(*n, Operation::Literal(_)));
+                            let is_literal = self
+                                .pattern
+                                .get(*n)
+                                .is_some_and(|n| matches!(*n, Operation::Literal(_)));
                             let resp = ui.button(if is_literal { "(L -> V)" } else { "(V -> L)" });
                             if resp.clicked() {
                                 if is_literal {

@@ -15,40 +15,89 @@ fn model_from_graph(
     let mut verts: Vec<Vertex> = Vec::new();
     let mut tris: Vec<[u16; 3]> = Vec::new();
 
-    let mut create_rect = |source_pos: Vec3, target_pos: Vec3, tangent: Vec3, width: f32, color: Vec3| {
-        let dir = target_pos - source_pos;
-        let offset_len = width * 0.5;
+    let mut create_rect =
+        |source_pos: Vec3, target_pos: Vec3, tangent: Vec3, width: f32, color: Vec3| {
+            let dir = target_pos - source_pos;
+            let offset_len = width * 0.5;
 
-        let normal = dir.cross(tangent).normalize();
-        let offset_x = normal.cross(dir).normalize() * offset_len;
-        // let offset_x = tangent.normalize() * offset_len;
+            let normal = dir.cross(tangent).normalize();
+            let offset_x = normal.cross(dir).normalize() * offset_len;
+            // let offset_x = tangent.normalize() * offset_len;
 
-        let idx = verts.len() as u16;
-        verts.extend(
-            [
-                Vertex::new(source_pos - offset_x, [1.0, 0.0].into(), color, normal, tangent),
-                Vertex::new(source_pos + offset_x, [0.0, 0.0].into(), color, normal, tangent),
-                Vertex::new(target_pos + offset_x, [0.0, 0.5].into(), color, normal, tangent),
-                Vertex::new(target_pos - offset_x, [1.0, 0.5].into(), color, normal, tangent),
-            ]
-            .iter(),
-        );
-        tris.push([idx, idx + 1, idx + 2]);
-        tris.push([idx + 2, idx + 3, idx]);
+            let idx = verts.len() as u16;
+            verts.extend(
+                [
+                    Vertex::new(
+                        source_pos - offset_x,
+                        [1.0, 0.0].into(),
+                        color,
+                        normal,
+                        tangent,
+                    ),
+                    Vertex::new(
+                        source_pos + offset_x,
+                        [0.0, 0.0].into(),
+                        color,
+                        normal,
+                        tangent,
+                    ),
+                    Vertex::new(
+                        target_pos + offset_x,
+                        [0.0, 0.5].into(),
+                        color,
+                        normal,
+                        tangent,
+                    ),
+                    Vertex::new(
+                        target_pos - offset_x,
+                        [1.0, 0.5].into(),
+                        color,
+                        normal,
+                        tangent,
+                    ),
+                ]
+                .iter(),
+            );
+            tris.push([idx, idx + 1, idx + 2]);
+            tris.push([idx + 2, idx + 3, idx]);
 
-        let idx = verts.len() as u16;
-        verts.extend(
-            [
-                Vertex::new(source_pos - offset_x, [0.0, 0.5].into(), color, -normal, tangent),
-                Vertex::new(source_pos + offset_x, [1.0, 0.5].into(), color, -normal, tangent),
-                Vertex::new(target_pos + offset_x, [1.0, 1.0].into(), color, -normal, tangent),
-                Vertex::new(target_pos - offset_x, [0.0, 1.0].into(), color, -normal, tangent),
-            ]
-            .iter(),
-        );
-        tris.push([idx, idx + 2, idx + 1]);
-        tris.push([idx + 3, idx + 2, idx]);
-    };
+            let idx = verts.len() as u16;
+            verts.extend(
+                [
+                    Vertex::new(
+                        source_pos - offset_x,
+                        [0.0, 0.5].into(),
+                        color,
+                        -normal,
+                        tangent,
+                    ),
+                    Vertex::new(
+                        source_pos + offset_x,
+                        [1.0, 0.5].into(),
+                        color,
+                        -normal,
+                        tangent,
+                    ),
+                    Vertex::new(
+                        target_pos + offset_x,
+                        [1.0, 1.0].into(),
+                        color,
+                        -normal,
+                        tangent,
+                    ),
+                    Vertex::new(
+                        target_pos - offset_x,
+                        [0.0, 1.0].into(),
+                        color,
+                        -normal,
+                        tangent,
+                    ),
+                ]
+                .iter(),
+            );
+            tris.push([idx, idx + 2, idx + 1]);
+            tris.push([idx + 3, idx + 2, idx]);
+        };
 
     graph
         .node_references()
@@ -133,7 +182,7 @@ pub fn model_from_pattern(pattern: &Pattern) -> ModelData {
     println!("SGD took {}s", start_time.elapsed().as_secs_f32());
     sgd::fdg(&mut graph);
     println!("FDG took {}s", start_time.elapsed().as_secs_f32());
-    sgd::normalize(&mut graph);
+    let _ = sgd::normalize(&mut graph);
     println!("Norm took {}s", start_time.elapsed().as_secs_f32());
 
     let orig_graph = pattern.graph();
@@ -194,16 +243,15 @@ mod tests {
         // (more including foundation chain)
 
         let mut file = std::fs::File::create(format!("{TEST_DIR}/runtime.csv")).unwrap();
-        (5..49)
-            .for_each(|i| {
-                let pattern = test_pattern_flat(i).unwrap();
-                let nodes = pattern.graph().node_count();
+        (5..49).for_each(|i| {
+            let pattern = test_pattern_flat(i).unwrap();
+            let nodes = pattern.graph().node_count();
 
-                let start_time = std::time::Instant::now();
-                let _model = model_from_pattern(&pattern);
-                let elapsed = start_time.elapsed().as_secs_f64();
+            let start_time = std::time::Instant::now();
+            let _model = model_from_pattern(&pattern);
+            let elapsed = start_time.elapsed().as_secs_f64();
 
-                writeln!(file, "{nodes}, {elapsed}").unwrap()
-            });
+            writeln!(file, "{nodes}, {elapsed}").unwrap()
+        });
     }
 }

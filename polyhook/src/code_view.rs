@@ -25,7 +25,9 @@ impl CodeView {
             .stroke(ui.visuals().window_stroke)
             .rounding(ui.visuals().window_rounding)
             .show(ui, |ui| {
-                let file_label = self.code.path()
+                let file_label = self
+                    .code
+                    .path()
                     .and_then(|path| path.file_name())
                     .and_then(|name| name.to_str())
                     .unwrap_or("<unsaved file>");
