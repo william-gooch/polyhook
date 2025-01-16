@@ -1,4 +1,5 @@
 # Polyhook - Parametric Crochet CAD software
+[Github Link](https://github.com/william-gooch/polyhook)
 
 Polyhook is a parametric CAD software package for creating crochet patterns. It allows the user to program patterns using the Rhai scripting language and visualize them as a 3D model.
 
